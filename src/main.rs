@@ -15,13 +15,15 @@ pub enum ClientEvent {
     ClientDisconnect(ClientId, Option<BoxErr>),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ClientId(u64);
 
 pub mod terminal;
 pub mod connection;
 pub mod host;
 pub mod killable;
+pub mod world;
+pub mod geom;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let mut runtime = tokio::runtime::Runtime::new()?;
