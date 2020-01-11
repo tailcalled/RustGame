@@ -1,5 +1,3 @@
-use termion::input::TermRead;
-use std::io::{stdin, stdout, Write, Stdin, Stdout};
 use std::error::Error;
 use std::thread;
 use crossbeam::channel;
@@ -23,8 +21,6 @@ pub mod terminal;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let term = terminal::Terminal::new();
-    let mut stdin = stdin();
-    let mut stdout = stdout();
     term.println("Welcome to RustGame!")?;
     let username = term.readln("Please enter your username.")?;
     term.println(format!("Hello {}!", username))?;
@@ -38,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>>{
             thread::spawn(move || {
                 //host::host_game(rx);
             });
-            host_lobby(tx, stdin, stdout);
+            host_lobby(tx, term)?;
         }
         value if value.starts_with("join ") => {
 
@@ -49,19 +45,16 @@ fn main() -> Result<(), Box<dyn Error>>{
     Ok(())
 }
 
-fn host_lobby(tx: channel::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
-    println!("Available commands:");
-    println!(" * start -- starts the game");
+fn host_lobby(tx: channel::Sender<LobbyCommand>, term: terminal::Terminal) -> Result<(), Box<dyn Error>> {
+    term.println("Available commands:")?;
+    term.println(" * start -- starts the game")?;
     loop {
-        print!("> ");
-        stdout.flush().unwrap();
-        let choice = TermRead::read_line(&mut stdin);
-        match choice.unwrap().as_ref().map(String::as_str) {
-            None => {},
-            Some("start") =>
+        let choice = term.readln("Enter a command.")?;
+        match choice.as_str() {
+            "start" =>
                 tx.send(LobbyCommand::StartGame).unwrap(),
-            Some(_) =>
-                println!("Invalid command!")
+            _ =>
+                term.println("Invalid command!")?
         }
     }
 }
