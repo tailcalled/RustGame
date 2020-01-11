@@ -10,3 +10,6 @@ serde = "1.0"
 bincode = "1.2"
 crossbeam = "0.7"
 get_if_addrs = "0.5"
+futures = "0.3"
+tokio = { version = "0.2", features = ["full"] }
+atomic-take = "1.0"

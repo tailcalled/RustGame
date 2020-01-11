@@ -1,8 +1,7 @@
 use termion::input::TermRead;
 use std::io::{stdin, stdout, Write, Stdin, Stdout};
 use std::error::Error;
-use std::thread;
-use crossbeam::channel;
+use tokio::sync::mpsc::{self, Sender};
 
 pub enum LobbyCommand {
     StartGame
@@ -15,13 +14,16 @@ pub enum ClientEvent {
 }
 
 #[derive(Copy, Clone)]
-struct ClientId(u64);
+pub struct ClientId(u64);
 
 pub mod terminal;
 pub mod connection;
 pub mod host;
+pub mod killable;
 
 fn main() -> Result<(), Box<dyn Error>>{
+    let mut runtime = tokio::runtime::Runtime::new()?;
+
     let term = terminal::Terminal::new();
     let mut stdin = stdin();
     let mut stdout = stdout();
@@ -34,11 +36,9 @@ fn main() -> Result<(), Box<dyn Error>>{
     let choice = term.readln("Please pick an option to start the game.")?;
     match choice.as_str() {
         "host" => {
-            let (tx, rx) = channel::unbounded();
-            thread::spawn(move || {
-                host::host_game(rx);
-            });
-            host_lobby(tx, stdin, stdout);
+            let (tx, rx) = mpsc::channel(64);
+            runtime.spawn(host::host_game(rx));
+            runtime.block_on(host_lobby(tx, stdin, stdout));
         }
         value if value.starts_with("join ") => {
 
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>>{
     Ok(())
 }
 
-fn host_lobby(tx: channel::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
+async fn host_lobby(mut tx: Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
     println!("Available commands:");
     println!(" * start -- starts the game");
     loop {
@@ -59,7 +59,7 @@ fn host_lobby(tx: channel::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: S
         match choice.unwrap().as_ref().map(String::as_str) {
             None => {},
             Some("start") =>
-                tx.send(LobbyCommand::StartGame).unwrap(),
+                drop(tx.send(LobbyCommand::StartGame).await),
             Some(_) =>
                 println!("Invalid command!")
         }
