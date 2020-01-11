@@ -5,3 +5,4 @@ authors = ["Tailcalled <tailcalled@gmail.com>", "Alice Ryhl <alice@ryhl.io>"]
 edition = "2018"
 
 [dependencies]
+termion = "1.5"
