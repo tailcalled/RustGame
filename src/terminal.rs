@@ -86,7 +86,7 @@ impl TerminalState {
             print!("═");
         }
         print!("╝");
-        stdout().flush();
+        self.finish_render();
         self.render_console();
         self.render_query()
     }
@@ -103,7 +103,7 @@ impl TerminalState {
                 print!(" ")
             }
         }
-        stdout().flush();
+        self.finish_render();
     }
     fn render_query(&mut self) {
         print!("{}", termion::cursor::Goto(1+1, 1+1+SCREEN_H+1));
@@ -129,6 +129,15 @@ impl TerminalState {
         for i in 0 .. rem {
             print!(" ");
         }
+        self.finish_render();
+    }
+    fn finish_render(&mut self) {
+        if self.query.is_some() {
+            print!("{}{}", termion::cursor::Show, termion::cursor::Goto(1+1+2+self.reply.len() as u16, 1+1+SCREEN_H+2));
+        }
+        else {
+            print!("{}", termion::cursor::Hide);
+        }
         stdout().flush();
     }
     fn println(&mut self, line: String) {
@@ -147,7 +156,9 @@ impl TerminalState {
         self.render_query();
     }
     fn add_reply_char(&mut self, ch: char) {
-        self.reply.push(ch);
+        if self.reply.len() as (u16) < SCREEN_W+1+TERM_W-3 {
+            self.reply.push(ch);
+        }
         self.render_query();
     }
     fn backspace(&mut self) {
@@ -178,7 +189,6 @@ fn terminal_thread(rx: mpsc::Receiver<TerminalCommand>) {
             Backspace => state.backspace(),
             FinishReply(resp) => state.finish_reply(resp),
         }
-        println!("OK {}", iter);
         iter += 1;
     }
 }

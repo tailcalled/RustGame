@@ -15,11 +15,11 @@ pub enum ClientEvent {
 }
 
 #[derive(Copy, Clone)]
-struct ClientId(u64);
+pub struct ClientId(u64);
 
 pub mod terminal;
-pub mod connection;
-pub mod host;
+//pub mod connection;
+//pub mod host;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let term = terminal::Terminal::new();
@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>>{
         "host" => {
             let (tx, rx) = channel::unbounded();
             thread::spawn(move || {
-                host::host_game(rx);
+                //host::host_game(rx);
             });
             host_lobby(tx, stdin, stdout);
         }
