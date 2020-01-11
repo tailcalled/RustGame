@@ -1,42 +1,40 @@
 use termion::input::TermRead;
 use std::io::{stdin, stdout, Write, Stdin, Stdout};
+use std::error::{Error};
 use std::thread;
 use std::sync::mpsc;
 
 enum LobbyCommand { StartGame }
 
+pub mod terminal;
 pub mod connection;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>>{
+    let term = terminal::Terminal::new();
     let mut stdin = stdin();
     let mut stdout = stdout();
-    println!("Welcome to RustGame!");
-    println!("Please enter your username.");
-    print!("> ");
-    stdout.flush();
-    let username = TermRead::read_line(&mut stdin).unwrap().unwrap_or_else(|| "anonymous".to_string());
-    println!("Hello {}!", username);
-    println!("Available commands:");
-    println!(" * host -- host a game");
-    println!(" * join <address> -- join the game hosted at address");
-    print!("> ");
-    stdout.flush();
-    let choice = TermRead::read_line(&mut stdin);
-    match choice.unwrap().as_ref().map(String::as_str) {
-        None => println!("Goodbye"),
-        Some("host") => {
+    term.println("Welcome to RustGame!")?;
+    let username = term.readln("Please enter your username.")?;
+    term.println(format!("Hello {}!", username))?;
+    term.println("Available commands:")?;
+    term.println(" * host -- host a game")?;
+    term.println(" * join <address> -- join the game hosted at address")?;
+    let choice = term.readln("Please pick an option to start the game.")?;
+    match choice.as_str() {
+        "host" => {
             let (tx, rx) = mpsc::channel();
             thread::spawn(move || {
                 host_game(rx);
             });
             host_lobby(tx, stdin, stdout);
         }
-        Some(value) if value.starts_with("join ") => {
+        value if value.starts_with("join ") => {
 
         }
-        Some(_) =>
-            println!("Command not understood.")
+        _ =>
+            term.println("Command not understood.")?
     }
+    Ok(())
 }
 
 fn host_game(rx: mpsc::Receiver<LobbyCommand>) {
