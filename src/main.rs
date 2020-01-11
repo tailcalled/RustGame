@@ -5,6 +5,8 @@ use std::sync::mpsc;
 
 enum LobbyCommand { StartGame }
 
+pub mod connection;
+
 fn main() {
     let mut stdin = stdin();
     let mut stdout = stdout();

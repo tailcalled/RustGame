@@ -6,3 +6,5 @@ edition = "2018"
 
 [dependencies]
 termion = "1.5"
+serde = "1.0"
+bincode = "1.2"
