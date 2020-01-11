@@ -1,22 +1,18 @@
 use std::error::Error;
-use tokio::sync::mpsc::{self, Sender};
-
-type BoxErr = Box<dyn Error + Send + Sync + 'static>;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 pub enum LobbyCommand {
     StartGame
 }
 
-#[derive(Debug)]
-pub enum ClientEvent {
-    ClientConnect(ClientId),
-    ClientGotName(ClientId, String),
-    ClientDisconnect(ClientId, Option<BoxErr>),
+#[derive(Serialize, Deserialize)]
+pub enum WorldEvent {}
+#[derive(Serialize, Deserialize)]
+pub enum ReceiveEvent {
+    Disconnect(),
+    WorldEvent(WorldEvent),
 }
-
-#[derive(Debug, Copy, Clone)]
-pub struct ClientId(u64);
 
 pub mod terminal;
 pub mod connection;
@@ -34,11 +30,9 @@ fn main() -> Result<(), Box<dyn Error>>{
     term.println(" * host -- host a game")?;
     term.println(" * join <address> -- join the game hosted at address")?;
     let choice = term.readln("Please pick an option to start the game.")?;
-    match choice.as_str() {
+    match choice.as_str().trim() {
         "host" => {
-            let (tx, rx) = mpsc::channel(64);
-            runtime.spawn(host::host_game(rx, term.clone()));
-            runtime.block_on(host_lobby(tx, term));
+            runtime.block_on(host::host_game(term.clone()));
         }
         value if value.starts_with("join ") => {
 
@@ -49,16 +43,3 @@ fn main() -> Result<(), Box<dyn Error>>{
     Ok(())
 }
 
-async fn host_lobby(mut tx: Sender<LobbyCommand>, term: terminal::Terminal) -> Result<(), Box<dyn Error>> {
-    term.println("Available commands:")?;
-    term.println(" * start -- starts the game")?;
-    loop {
-        let choice = term.readln("Enter a command.")?;
-        match choice.as_str() {
-            "start" =>
-                drop(tx.send(LobbyCommand::StartGame).await),
-            _ =>
-                term.println("Invalid command!")?
-        }
-    }
-}

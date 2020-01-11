@@ -1,58 +1,101 @@
 use std::{io, error::Error};
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::net::SocketAddr;
+
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::{self, Sender, Receiver};
+use tokio::sync::oneshot;
+use tokio::sync::mpsc::Sender;
+
+use crate::ReceiveEvent;
+use crate::terminal::Terminal;
 use crate::connection::Connection;
-use crate::{ClientEvent, ClientId};
+use crate::host::{ClientEvent, ClientId};
+use crate::killable::{spawn, KillHandle};
 
 type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 
+#[derive(Debug)]
 pub struct Client {
-    addr: SocketAddr,
-    client_id: ClientId,
-    _kill: crate::killable::KillHandle,
+    pub client_id: ClientId,
+    pub name: String,
+    pub addr: SocketAddr,
+    _handle: KillHandle,
 }
 
-impl Client {
-    pub async fn new(
-        stream: TcpStream,
-        addr: SocketAddr,
-        mut sink: Sender<ClientEvent>,
-        client_id: ClientId,
-    ) -> io::Result<Self> {
-        let stream = Connection::new(stream)?;
-        let _ = sink.send(ClientEvent::ClientConnect(client_id)).await;
-        let kill = crate::killable::spawn(async move {
-            let mut sink_fail = sink.clone();
-            let c = ClientInner {
-                stream,
-                sink,
-                id: client_id,
-            };
-            use crate::ClientEvent::ClientDisconnect;
-            if let Err(err) = handle_client(c).await {
-                let _ = sink_fail.send(ClientDisconnect(client_id, Some(err))).await;
-            } else {
-                let _ = sink_fail.send(ClientDisconnect(client_id, None)).await;
-            }
-        });
-        Ok(Client {
-            addr,
-            client_id,
-            _kill: kill,
-        })
-    }
+pub fn client_received(
+    stream: TcpStream,
+    addr: SocketAddr,
+    sink: Sender<ClientEvent>,
+    client_id: ClientId,
+    term: Terminal,
+) -> io::Result<()> {
+    let stream = Connection::new(stream)?;
+
+    let inner = ClientInner {
+        client_id,
+        addr,
+        sink,
+        stream,
+        term,
+    };
+    let (send, recv) = oneshot::channel();
+    let handle = spawn(start_client_task(inner, recv));
+    send.send(handle).unwrap();
+    Ok(())
 }
 
 struct ClientInner {
-    stream: Connection,
+    client_id: ClientId,
+    addr: SocketAddr,
     sink: Sender<ClientEvent>,
-    id: ClientId,
+    stream: Connection,
+    term: Terminal,
 }
 
-async fn handle_client(mut c: ClientInner) -> Result<(), BoxErr> {
-    let name: String = c.stream.recv().await?;
-    c.sink.send(ClientEvent::ClientGotName(c.id, name)).await?;
-    Ok(())
+type Recv = oneshot::Receiver<KillHandle>;
+async fn start_client_task(mut inner: ClientInner, recv: Recv) {
+    let handle = recv.await.unwrap();
+
+    let name = match inner.stream.recv().await {
+        Ok(name) => name,
+        Err(err) => {
+            let _ = inner.term.println(format!(
+                    "Failed to receive name from client: {}",
+                    err
+            ));
+            return;
+        },
+    };
+    let client = Client {
+        client_id: inner.client_id,
+        addr: inner.addr,
+        name,
+        _handle: handle,
+    };
+    match inner.sink.send(ClientEvent::ClientConnected(client)).await {
+        Ok(()) => {},
+        Err(_) => return,
+    }
+
+    match async {
+        loop {
+            let msg: ReceiveEvent = inner.stream.recv().await?;
+            let client_msg = match msg {
+                ReceiveEvent::Disconnect() =>
+                    ClientEvent::ClientDisconnect(inner.client_id, None),
+                ReceiveEvent::WorldEvent(world) => match world {},
+            };
+            if let Err(_) = inner.sink.send(client_msg).await {
+                break Ok(());
+            }
+        }
+    }.await {
+        Ok(()) => {},
+        Err(err) => {
+            let err: io::Error = err;
+            let err = Some(Box::new(err) as BoxErr);
+            inner.sink.send(ClientEvent::ClientDisconnect(
+                    inner.client_id, err)).await.unwrap();
+        },
+    }
 }
+

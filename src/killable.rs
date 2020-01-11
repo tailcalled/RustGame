@@ -22,6 +22,7 @@ pub fn new_handle<F: Future<Output = ()>>(future: F) -> (KillHandle, Killable<F>
     (KillHandle { inner: AtomicTake::new(send) }, fut)
 }
 
+#[derive(Debug)]
 pub struct KillHandle {
     inner: AtomicTake<Sender<()>>,
 }
@@ -38,6 +39,7 @@ impl Drop for KillHandle {
     }
 }
 
+#[derive(Debug)]
 pub struct Killable<F> {
     inner: Option<F>,
     kill: Receiver<()>,
