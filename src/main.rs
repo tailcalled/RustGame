@@ -1,17 +1,21 @@
 use std::error::Error;
 use tokio::sync::mpsc::{self, Sender};
 
+type BoxErr = Box<dyn Error + Send + Sync + 'static>;
+
+#[derive(Debug)]
 pub enum LobbyCommand {
     StartGame
 }
 
+#[derive(Debug)]
 pub enum ClientEvent {
     ClientConnect(ClientId),
     ClientGotName(ClientId, String),
-    ClientDisconnect(ClientId, Option<Box<dyn Error>>),
+    ClientDisconnect(ClientId, Option<BoxErr>),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ClientId(u64);
 
 pub mod terminal;

@@ -12,7 +12,7 @@ use crate::killable::{spawn, KillHandle};
 use crate::terminal;
 use get_if_addrs::get_if_addrs;
 
-// pub mod client;
+pub mod client;
 
 pub async fn host_game(rx: Receiver<LobbyCommand>, term: terminal::Terminal) {
     match host_game_real(rx, term.clone()).await {
