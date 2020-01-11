@@ -1,11 +1,14 @@
 use termion::input::TermRead;
 use std::io::{stdin, stdout, Write, Stdin, Stdout};
 use std::thread;
-use std::sync::mpsc;
+use crossbeam::channel;
 
-enum LobbyCommand { StartGame }
+pub enum LobbyCommand {
+    StartGame
+}
 
 pub mod connection;
+pub mod host;
 
 fn main() {
     let mut stdin = stdin();
@@ -13,21 +16,21 @@ fn main() {
     println!("Welcome to RustGame!");
     println!("Please enter your username.");
     print!("> ");
-    stdout.flush();
+    stdout.flush().unwrap();
     let username = TermRead::read_line(&mut stdin).unwrap().unwrap_or_else(|| "anonymous".to_string());
     println!("Hello {}!", username);
     println!("Available commands:");
     println!(" * host -- host a game");
     println!(" * join <address> -- join the game hosted at address");
     print!("> ");
-    stdout.flush();
+    stdout.flush().unwrap();
     let choice = TermRead::read_line(&mut stdin);
     match choice.unwrap().as_ref().map(String::as_str) {
         None => println!("Goodbye"),
         Some("host") => {
-            let (tx, rx) = mpsc::channel();
+            let (tx, rx) = channel::unbounded();
             thread::spawn(move || {
-                host_game(rx);
+                host::host_game(rx);
             });
             host_lobby(tx, stdin, stdout);
         }
@@ -39,15 +42,12 @@ fn main() {
     }
 }
 
-fn host_game(rx: mpsc::Receiver<LobbyCommand>) {
-
-}
-fn host_lobby(tx: mpsc::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
+fn host_lobby(tx: channel::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
     println!("Available commands:");
     println!(" * start -- starts the game");
-    while (true) {
+    loop {
         print!("> ");
-        stdout.flush();
+        stdout.flush().unwrap();
         let choice = TermRead::read_line(&mut stdin);
         match choice.unwrap().as_ref().map(String::as_str) {
             None => {},
