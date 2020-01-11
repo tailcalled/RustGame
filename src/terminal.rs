@@ -29,8 +29,8 @@ impl Default for Scene {
     }
 }
 impl Scene {
-    pub fn set_point(&mut self, sx: u16, sy: u16, ch: char, foreground: AnsiValue, background: AnsiValue) {
-        if !(sx < 0 || sy < 0 || sx >= SCREEN_W || sy >= SCREEN_H) {
+    pub fn set_point(&mut self, sx: i32, sy: i32, ch: char, foreground: AnsiValue, background: AnsiValue) {
+        if !(sx < 0 || sy < 0 || sx >= SCREEN_W as i32 || sy >= SCREEN_H as i32) {
             self.0[sx as usize][sy as usize] = ColoredChar { ch, foreground, background }
         }
     }
@@ -85,11 +85,11 @@ impl Terminal {
     }
 }
 
-const SCREEN_W: u16 = 61;
-const HEIGHT: u16 = 30;
-const TERM_H: u16 = HEIGHT - 3;
-const SCREEN_H: u16 = HEIGHT - 3;
-const TERM_W: u16 = 30;
+pub const SCREEN_W: u16 = 61;
+pub const HEIGHT: u16 = 30;
+pub const TERM_H: u16 = HEIGHT - 3;
+pub const SCREEN_H: u16 = HEIGHT - 3;
+pub const TERM_W: u16 = 30;
 
 struct TerminalState {
     console_out: VecDeque<String>,
