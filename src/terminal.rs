@@ -249,8 +249,10 @@ fn input_thread(rx: channel::Receiver<InputCommand>, tx: channel::Sender<Termina
         for ev in stdin().events() {
             use termion::event::*;
             match ev.unwrap() {
-                Event::Key(Key::Ctrl('c')) =>
-                    std::process::abort(),
+                Event::Key(Key::Ctrl('c')) => {
+                    drop(_raw_mode);
+                    std::process::abort()
+                }
                 Event::Key(Key::Char('\n')) => {
                     tx.send(TerminalCommand::FinishReply(result)).unwrap();
                     break;
