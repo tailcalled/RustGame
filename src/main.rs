@@ -20,6 +20,7 @@ pub mod host;
 pub mod killable;
 pub mod world;
 pub mod geom;
+pub mod renderer;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let mut runtime = tokio::runtime::Runtime::new()?;

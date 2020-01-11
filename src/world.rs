@@ -7,13 +7,13 @@ pub struct EntityId(usize);
 
 #[derive(Clone)]
 pub struct World {
-    entities: Map<EntityId, Entity>,
+    pub entities: Map<EntityId, Entity>,
     next_entity_id: EntityId,
 }
 #[derive(Clone)]
 pub struct Entity {
-    pos: Vec,
-    kind: EntityKind,
+    pub pos: Vec,
+    pub kind: EntityKind,
 }
 #[derive(Copy, Clone)]
 pub enum EntityKind {
