@@ -1,11 +1,21 @@
 use termion::input::TermRead;
 use std::io::{stdin, stdout, Write, Stdin, Stdout};
+use std::error::Error;
 use std::thread;
 use crossbeam::channel;
 
 pub enum LobbyCommand {
     StartGame
 }
+
+pub enum ClientEvent {
+    ClientConnect(ClientId),
+    ClientGotName(ClientId, String),
+    ClientDisconnect(ClientId, Option<Box<dyn Error>>),
+}
+
+#[derive(Copy, Clone)]
+struct ClientId(u64);
 
 pub mod connection;
 pub mod host;

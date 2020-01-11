@@ -5,6 +5,8 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use crate::LobbyCommand;
 use get_if_addrs::get_if_addrs;
 
+pub mod client;
+
 pub fn host_game(rx: Receiver<LobbyCommand>) {
     match host_game_real(rx) {
         Err(err) => {
@@ -27,6 +29,7 @@ fn host_game_real(lobby: Receiver<LobbyCommand>) -> io::Result<()> {
 
     let mut first = true;
     let ips = get_if_addrs()?.into_iter()
+        .filter(|interface| interface.name != "lo")
         .for_each(|interface| {
             let comma = if first { "" } else { ", " };
             first = false;
