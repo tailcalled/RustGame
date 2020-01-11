@@ -5,7 +5,8 @@ use termion::color::AnsiValue;
 use std::io::{stdout, stdin, Write};
 use std::error::{Error};
 use std::thread;
-use std::sync::mpsc;
+//use std::sync::mpsc;
+use crossbeam::channel;
 use std::collections::VecDeque;
 
 #[derive(Copy, Clone)]
@@ -33,22 +34,22 @@ enum TerminalCommand {
     SetQuery(Option<String>),
     AddReplyChar(char),
     Backspace,
-    FinishReply(mpsc::Sender<String>),
+    FinishReply(channel::Sender<String>),
     DrawScene(Box<Scene>),
 }
 enum InputCommand {
-    Query(String, mpsc::Sender<String>),
+    Query(String, channel::Sender<String>),
 }
 
 #[derive(Clone)]
 pub struct Terminal {
-    control: mpsc::Sender<TerminalCommand>,
-    input: mpsc::Sender<InputCommand>,
+    control: channel::Sender<TerminalCommand>,
+    input: channel::Sender<InputCommand>,
 }
 impl Terminal {
     pub fn new() -> Self {
-        let (ttx, trx) = mpsc::channel();
-        let (itx, irx) = mpsc::channel();
+        let (ttx, trx) = channel::unbounded();
+        let (itx, irx) = channel::unbounded();
         let ttx2 = ttx.clone();
         let term = Terminal {
             control : ttx,
@@ -67,7 +68,7 @@ impl Terminal {
         Ok(())
     }
     pub fn readln<S: ToString>(&self, query: S) -> Result<String, Box<dyn Error>> {
-        let (rtx, rrx) = mpsc::channel();
+        let (rtx, rrx) = channel::unbounded();
         self.input.send(InputCommand::Query(query.to_string(), rtx))?;
         Ok(rrx.recv()?)
     }
@@ -208,7 +209,7 @@ impl TerminalState {
         self.reply.pop();
         self.render_query();
     }
-    fn finish_reply(&mut self, resp: mpsc::Sender<String>) {
+    fn finish_reply(&mut self, resp: channel::Sender<String>) {
         resp.send(std::mem::replace(&mut self.reply, String::new())).unwrap();
         self.query = None;
         self.render_query();
@@ -219,7 +220,7 @@ impl TerminalState {
     }
 }
 
-fn terminal_thread(rx: mpsc::Receiver<TerminalCommand>) {
+fn terminal_thread(rx: channel::Receiver<TerminalCommand>) {
     let mut state = TerminalState {
         console_out : VecDeque::new(),
         query : None,
@@ -241,7 +242,7 @@ fn terminal_thread(rx: mpsc::Receiver<TerminalCommand>) {
 }
 
 
-fn input_thread(rx: mpsc::Receiver<InputCommand>, tx: mpsc::Sender<TerminalCommand>) {
+fn input_thread(rx: channel::Receiver<InputCommand>, tx: channel::Sender<TerminalCommand>) {
     while let Ok(InputCommand::Query(query, result)) = rx.recv() {
         tx.send(TerminalCommand::SetQuery(Some(query))).unwrap();
         let _raw_mode = stdout().into_raw_mode();

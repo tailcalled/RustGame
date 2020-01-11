@@ -9,19 +9,20 @@ use std::net::SocketAddr;
 
 use crate::LobbyCommand;
 use crate::killable::{spawn, KillHandle};
+use crate::terminal;
 use get_if_addrs::get_if_addrs;
 
 // pub mod client;
 
-pub async fn host_game(rx: Receiver<LobbyCommand>) {
-    match host_game_real(rx).await {
+pub async fn host_game(rx: Receiver<LobbyCommand>, term: terminal::Terminal) {
+    match host_game_real(rx, term.clone()).await {
         Err(err) => {
-            println!("Error in host: {}", err);
+            term.println(format!("Error in host: {}", err));
         },
         Ok(()) => {},
     }
 }
-async fn host_game_real(lobby: Receiver<LobbyCommand>) -> io::Result<()> {
+async fn host_game_real(lobby: Receiver<LobbyCommand>, term: terminal::Terminal) -> io::Result<()> {
     let host = Host::new().await?;
 
     fn to_ip(addr: get_if_addrs::IfAddr) -> String {
@@ -41,7 +42,7 @@ async fn host_game_real(lobby: Receiver<LobbyCommand>) -> io::Result<()> {
                 string.push_str(", ");
             });
         string.pop(); string.pop();
-        println!("Listening on {}", string);
+        term.println(format!("Listening on {}", string));
         io::Result::Ok(())
     })?;
 

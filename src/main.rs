@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>>{
     match choice.as_str() {
         "host" => {
             let (tx, rx) = mpsc::channel(64);
-            runtime.spawn(host::host_game(rx));
+            runtime.spawn(host::host_game(rx, term.clone()));
             runtime.block_on(host_lobby(tx, term));
         }
         value if value.starts_with("join ") => {
