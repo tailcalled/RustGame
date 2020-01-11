@@ -1,13 +1,25 @@
 use termion::input::TermRead;
 use std::io::{stdin, stdout, Write, Stdin, Stdout};
-use std::error::{Error};
+use std::error::Error;
 use std::thread;
-use std::sync::mpsc;
+use crossbeam::channel;
 
-enum LobbyCommand { StartGame }
+pub enum LobbyCommand {
+    StartGame
+}
+
+pub enum ClientEvent {
+    ClientConnect(ClientId),
+    ClientGotName(ClientId, String),
+    ClientDisconnect(ClientId, Option<Box<dyn Error>>),
+}
+
+#[derive(Copy, Clone)]
+struct ClientId(u64);
 
 pub mod terminal;
 pub mod connection;
+pub mod host;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let term = terminal::Terminal::new();
@@ -22,9 +34,9 @@ fn main() -> Result<(), Box<dyn Error>>{
     let choice = term.readln("Please pick an option to start the game.")?;
     match choice.as_str() {
         "host" => {
-            let (tx, rx) = mpsc::channel();
+            let (tx, rx) = channel::unbounded();
             thread::spawn(move || {
-                host_game(rx);
+                host::host_game(rx);
             });
             host_lobby(tx, stdin, stdout);
         }
@@ -37,15 +49,12 @@ fn main() -> Result<(), Box<dyn Error>>{
     Ok(())
 }
 
-fn host_game(rx: mpsc::Receiver<LobbyCommand>) {
-
-}
-fn host_lobby(tx: mpsc::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
+fn host_lobby(tx: channel::Sender<LobbyCommand>, mut stdin: Stdin, mut stdout: Stdout) {
     println!("Available commands:");
     println!(" * start -- starts the game");
-    while (true) {
+    loop {
         print!("> ");
-        stdout.flush();
+        stdout.flush().unwrap();
         let choice = TermRead::read_line(&mut stdin);
         match choice.unwrap().as_ref().map(String::as_str) {
             None => {},
