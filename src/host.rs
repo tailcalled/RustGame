@@ -7,8 +7,6 @@ use std::io;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::killable::{spawn, KillHandle};
 use crate::terminal::Terminal;
@@ -58,7 +56,7 @@ async fn host_game_real(
     let _ = term.println(format!("Listening on {}", string));
 
     let mut host = Host::new();
-    let next_client_id = Arc::new(AtomicU64::new(0));
+    let mut next_client_id = 0;
 
     let (sink, mut client_events) = mpsc::channel(128);
 
@@ -66,7 +64,8 @@ async fn host_game_real(
     tokio::spawn(accept.recv.for_each(move |result| {
         let sink = sink.clone();
         let term_accept = term_accept.clone();
-        let next_client_id = next_client_id.clone();
+        let id = ClientId(next_client_id);
+        next_client_id += 1;
         async move {
             let (stream, addr) = match result {
                 Ok(ok) => ok,
@@ -76,7 +75,6 @@ async fn host_game_real(
                     return;
                 },
             };
-            let id = ClientId(next_client_id.fetch_add(1, Ordering::Relaxed));
             if let Err(err) = self::client::client_received(
                 stream,
                 addr,
