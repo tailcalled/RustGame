@@ -1,6 +1,5 @@
 use std::error::Error;
-use std::thread;
-use crossbeam::channel;
+use tokio::sync::mpsc::{self, Sender};
 
 pub enum LobbyCommand {
     StartGame
@@ -16,10 +15,13 @@ pub enum ClientEvent {
 pub struct ClientId(u64);
 
 pub mod terminal;
-//pub mod connection;
-//pub mod host;
+pub mod connection;
+pub mod host;
+pub mod killable;
 
 fn main() -> Result<(), Box<dyn Error>>{
+    let mut runtime = tokio::runtime::Runtime::new()?;
+
     let term = terminal::Terminal::new();
     term.println("Welcome to RustGame!")?;
     let username = term.readln("Please enter your username.")?;
@@ -30,11 +32,9 @@ fn main() -> Result<(), Box<dyn Error>>{
     let choice = term.readln("Please pick an option to start the game.")?;
     match choice.as_str() {
         "host" => {
-            let (tx, rx) = channel::unbounded();
-            thread::spawn(move || {
-                //host::host_game(rx);
-            });
-            host_lobby(tx, term)?;
+            let (tx, rx) = mpsc::channel(64);
+            runtime.spawn(host::host_game(rx));
+            runtime.block_on(host_lobby(tx, term));
         }
         value if value.starts_with("join ") => {
 
@@ -45,14 +45,14 @@ fn main() -> Result<(), Box<dyn Error>>{
     Ok(())
 }
 
-fn host_lobby(tx: channel::Sender<LobbyCommand>, term: terminal::Terminal) -> Result<(), Box<dyn Error>> {
+async fn host_lobby(mut tx: Sender<LobbyCommand>, term: terminal::Terminal) -> Result<(), Box<dyn Error>> {
     term.println("Available commands:")?;
     term.println(" * start -- starts the game")?;
     loop {
         let choice = term.readln("Enter a command.")?;
         match choice.as_str() {
             "start" =>
-                tx.send(LobbyCommand::StartGame).unwrap(),
+                drop(tx.send(LobbyCommand::StartGame).await),
             _ =>
                 term.println("Invalid command!")?
         }

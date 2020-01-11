@@ -40,6 +40,7 @@ enum InputCommand {
     Query(String, mpsc::Sender<String>),
 }
 
+#[derive(Clone)]
 pub struct Terminal {
     control: mpsc::Sender<TerminalCommand>,
     input: mpsc::Sender<InputCommand>,
