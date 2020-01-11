@@ -28,6 +28,13 @@ impl Default for Scene {
         Scene([[c; SCREEN_H as usize]; SCREEN_W as usize])
     }
 }
+impl Scene {
+    fn set_point(&mut self, sx: u16, sy: u16, ch: char, foreground: AnsiValue, background: AnsiValue) {
+        if !(sx < 0 || sy < 0 || sx >= SCREEN_W || sy >= SCREEN_H) {
+            self.0[sx as usize][sy as usize] = ColoredChar { ch, foreground, background }
+        }
+    }
+}
 
 enum TerminalCommand {
     Println(String),
@@ -72,13 +79,13 @@ impl Terminal {
         self.input.send(InputCommand::Query(query.to_string(), rtx))?;
         Ok(rrx.recv()?)
     }
-    pub fn draw_scene(&self, scene: Scene) -> Result<(), Box<dyn Error>> {
-        self.control.send(TerminalCommand::DrawScene(Box::new(scene)))?;
+    pub fn draw_scene(&self, scene: Box<Scene>) -> Result<(), Box<dyn Error>> {
+        self.control.send(TerminalCommand::DrawScene(scene))?;
         Ok(())
     }
 }
 
-const SCREEN_W: u16 = 60;
+const SCREEN_W: u16 = 61;
 const HEIGHT: u16 = 30;
 const TERM_H: u16 = HEIGHT - 3;
 const SCREEN_H: u16 = HEIGHT - 3;

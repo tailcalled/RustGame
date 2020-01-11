@@ -30,6 +30,11 @@ impl SubAssign for Vec {
 	}
 }
 
+impl Vec {
+	pub fn new(x: i32, y: i32) -> Vec {
+		Vec { x , y }
+	}
+}
 impl Dir {
 	pub fn to_vec(self) -> Vec {
 		let Dir(res) = self;
