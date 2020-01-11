@@ -1,0 +1,7 @@
+[package]
+name = "RustGame"
+version = "0.1.0"
+authors = ["Tailcalled <tailcalled@gmail.com>", "Alice Ryhl <alice@ryhl.io>"]
+edition = "2018"
+
+[dependencies]
