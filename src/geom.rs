@@ -1,8 +1,8 @@
 use std::ops::*;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Vec { x: i32, y:i32 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Dir(Vec);
 
 impl Add for Vec {

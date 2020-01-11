@@ -33,12 +33,12 @@ pub enum WorldError {
 
 impl World {
     pub fn handle_event(&self, sender: Option<ClientId>, ev: WorldEvent) -> Result<Self, WorldError> {
-        let mut new_world = self.clone();
+        let mut w = self.clone();
         use WorldEvent::*;
         match (sender, &ev) {
             (None, _) => {}
             (Some(client), PlayerAction(id, _)) =>
-                match new_world.entities.get(&id) {
+                match w.entities.get(&id) {
                     None => Err(WorldError::IllegalEvent)?, // trying to move nonexistent player -- unauthorized, fail
                     Some(e) =>
                         match e.kind {
@@ -49,9 +49,14 @@ impl World {
         }
         match ev {
             PlayerAction(id, PlayerActionEvent::Move(dir)) =>
-                new_world.entities.modify(id, |player| player.pos += dir.to_vec())
+                if w.get_entities_at(w.entities.get(&id).unwrap().pos + dir.to_vec()).next().is_none() {
+                    w.entities.modify(id, |player| player.pos += dir.to_vec())
+                }
         }
-        Ok(new_world)
+        Ok(w)
+    }
+    pub fn get_entities_at(&self, pos: Vec) -> impl Iterator<Item=(EntityId, &Entity)> {
+        self.entities.iter().filter(move |(eid, ent)| ent.pos == pos).map(|(eid, ent)| (*eid, ent))
     }
 }
 
