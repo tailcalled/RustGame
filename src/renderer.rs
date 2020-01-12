@@ -4,7 +4,7 @@ use crate::terminal;
 use crate::geom::Vec;
 use termion::color::AnsiValue;
 
-pub fn render(world: &World, player_id: EntityId) -> Box<Scene> {
+pub fn render(world: &World, player_id: &EntityId) -> Box<Scene> {
     let mut scene = Box::new(Scene::default());
     let player = world.entities.get(&player_id).unwrap();
     for sx in 0 .. terminal::SCREEN_W {
