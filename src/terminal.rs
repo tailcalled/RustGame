@@ -46,6 +46,7 @@ enum TerminalCommand {
 }
 enum InputCommand {
     Query(String, channel::Sender<String>),
+    GetEvent(channel::Sender<termion::event::Event>),
 }
 
 #[derive(Clone)]
@@ -77,6 +78,11 @@ impl Terminal {
     pub fn readln<S: ToString>(&self, query: S) -> Result<String, Box<dyn Error>> {
         let (rtx, rrx) = channel::unbounded();
         self.input.send(InputCommand::Query(query.to_string(), rtx))?;
+        Ok(rrx.recv()?)
+    }
+    pub fn get_ev(&self) -> Result<termion::event::Event, Box<dyn Error>> {
+        let (rtx, rrx) = channel::unbounded();
+        self.input.send(InputCommand::GetEvent(rtx))?;
         Ok(rrx.recv()?)
     }
     pub fn draw_scene(&self, scene: Box<Scene>) -> Result<(), Box<dyn Error>> {
@@ -252,28 +258,43 @@ fn terminal_thread(rx: channel::Receiver<TerminalCommand>) {
 
 
 fn input_thread(rx: channel::Receiver<InputCommand>, tx: channel::Sender<TerminalCommand>) {
-    while let Ok(InputCommand::Query(query, result)) = rx.recv() {
-        tx.send(TerminalCommand::SetQuery(Some(query))).unwrap();
-        let _raw_mode = stdout().into_raw_mode();
-        for ev in stdin().events() {
-            use termion::event::*;
-            match ev.unwrap() {
-                Event::Key(Key::Ctrl('c')) => {
-                    drop(_raw_mode);
-                    std::process::abort()
+    while let Ok(command) = rx.recv() {
+        match command {
+            InputCommand::Query(query, result) => {
+                tx.send(TerminalCommand::SetQuery(Some(query))).unwrap();
+                let _raw_mode = stdout().into_raw_mode();
+                for ev in stdin().events() {
+                    use termion::event::*;
+                    match ev.unwrap() {
+                        Event::Key(Key::Ctrl('c')) => {
+                            drop(_raw_mode);
+                            std::process::abort()
+                        }
+                        Event::Key(Key::Char('\n')) => {
+                            tx.send(TerminalCommand::FinishReply(result)).unwrap();
+                            break;
+                        }
+                        Event::Key(Key::Char(c)) =>
+                            tx.send(TerminalCommand::AddReplyChar(c)).unwrap(),
+                        Event::Key(Key::Backspace) =>
+                            tx.send(TerminalCommand::Backspace).unwrap(),
+                        Event::Key(_) => {}
+                        _ => {}
+                    }
                 }
-                Event::Key(Key::Char('\n')) => {
-                    tx.send(TerminalCommand::FinishReply(result)).unwrap();
-                    break;
+                tx.send(TerminalCommand::SetQuery(None)).unwrap();
+            }
+            InputCommand::GetEvent(result) => {
+                let _raw_mode = stdout().into_raw_mode();
+                use termion::event::*;
+                match stdin().events().next().unwrap().unwrap() {
+                    Event::Key(Key::Ctrl('c')) => {
+                        drop(_raw_mode);
+                        std::process::abort()
+                    }
+                    ev => result.send(ev).unwrap(),
                 }
-                Event::Key(Key::Char(c)) =>
-                    tx.send(TerminalCommand::AddReplyChar(c)).unwrap(),
-                Event::Key(Key::Backspace) =>
-                    tx.send(TerminalCommand::Backspace).unwrap(),
-                Event::Key(_) => {}
-                _ => {}
             }
         }
-        tx.send(TerminalCommand::SetQuery(None)).unwrap();
     }
 }

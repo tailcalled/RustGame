@@ -52,7 +52,7 @@ pub fn handle_world(world_io: WorldIOHalf, start_world: World, me: ClientId) {
                         pending_events.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
                         speculative_world = agreed_world.clone();
                         if owner == Some(me) {
-                            awaiting_events = awaiting_events.into_iter().skip_while(|(_, id, _, _)| *id != evid).collect();
+                            awaiting_events = awaiting_events.into_iter().skip_while(|(_, id, _, _)| *id != evid).skip_while(|(_, id, _, _)| *id == evid).collect();
                         }
                         else {
                             // FIXME this seems dangerous...
@@ -80,9 +80,21 @@ fn render_world(world: &World, player: &EntityId, term: &terminal::Terminal) {
 
 fn start_ui_input(entity: EntityId, uitx: channel::Sender<WorldEvent>, term: terminal::Terminal) {
     thread::spawn (move || {
+        term.println("Use WASD to move.");
         loop {
-            term.readln("Press enter to move left.").unwrap();
-            uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::left()))).unwrap();
+            let ev = term.get_ev().unwrap();
+            use termion::event::*;
+            match ev {
+                Event::Key(Key::Char('w')) =>
+                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::up()))).unwrap(),
+                Event::Key(Key::Char('a')) =>
+                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::left()))).unwrap(),
+                Event::Key(Key::Char('s')) =>
+                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::down()))).unwrap(),
+                Event::Key(Key::Char('d')) =>
+                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::right()))).unwrap(),
+                _ => ()
+            }
         }
     });
 }
