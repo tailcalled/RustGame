@@ -26,21 +26,24 @@ pub enum ToClientEvent {
 }
 
 pub struct NetIOHalf {
+    pub term: terminal::Terminal,
     pub send: crossbeam::channel::Sender<ToClientEvent>,
     pub recv: tokio::sync::mpsc::UnboundedReceiver<FromClientEvent>,
 }
 
 pub struct WorldIOHalf {
+    pub term: terminal::Terminal,
     pub send: tokio::sync::mpsc::UnboundedSender<FromClientEvent>,
     pub recv: crossbeam::channel::Receiver<ToClientEvent>,
 }
 
-pub fn net_world_channel() -> (NetIOHalf, WorldIOHalf) {
+pub fn net_world_channel(term: terminal::Terminal) -> (NetIOHalf, WorldIOHalf) {
     let (to_client_send, to_client_recv) = tokio::sync::mpsc::unbounded_channel();
     let (from_client_send, from_client_recv) = crossbeam::channel::unbounded();
+    let term2 = term.clone();
     (
-        NetIOHalf { send: from_client_send, recv: to_client_recv, },
-        WorldIOHalf { send: to_client_send, recv: from_client_recv, },
+        NetIOHalf { term, send: from_client_send, recv: to_client_recv, },
+        WorldIOHalf { term: term2, send: to_client_send, recv: from_client_recv, },
     )
 }
 
