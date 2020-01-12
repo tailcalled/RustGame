@@ -17,7 +17,7 @@ pub enum FromClientEvent {
     PlayerEvent(crate::world::WorldEvent),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ToClientEvent {
     NewClientId(ClientId),
     RemoveClientId(ClientId),
