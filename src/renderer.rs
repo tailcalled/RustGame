@@ -21,5 +21,7 @@ pub fn render(world: &World, player_id: &EntityId) -> Box<Scene> {
         let screen_pos = entity.pos - offset;
         scene.set_point(screen_pos.x, screen_pos.y, '@', AnsiValue::rgb(5, 5, 5), AnsiValue::rgb(0, 0, 0));
     }
+    let (hp, maxhp) = player.hp.unwrap();
+    scene.write(format!("HP: {}/{}", hp, maxhp), 0, 0);
     scene
 }

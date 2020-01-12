@@ -34,6 +34,11 @@ impl Scene {
             self.0[sx as usize][sy as usize] = ColoredChar { ch, foreground, background }
         }
     }
+    pub fn write(&mut self, text: String, sx: i32, sy: i32) {
+        for (ix, ch) in text.char_indices() {
+            self.set_point(sx + ix as i32, sy, ch, AnsiValue::rgb(5, 5, 5), AnsiValue::rgb(0, 0, 0));
+        }
+    }
 }
 
 enum TerminalCommand {

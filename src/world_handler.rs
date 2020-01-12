@@ -39,6 +39,16 @@ pub fn handle_world(world_io: WorldIOHalf, start_world: World, me: ClientId) {
                     }
                     _ => {}
                 }
+                match (&self_entity, &msg) {
+                    (None, _) => {}
+                    (Some(self_id), (_, ToClientEvent::WorldEvent(_, _, WorldEvent::DeleteEntity(id)))) if self_id == id => {
+                        world_io.send.send(FromClientEvent::Disconnect());
+                        world_io.term.println("You died!");
+                        thread::sleep(Duration::from_millis(100));
+                        return;
+                    }
+                    _ => {}
+                }
                 match msg {
                     (_, ToClientEvent::NewClientId(_)) => {}
                     (_, ToClientEvent::RemoveClientId(_)) => {}
@@ -85,16 +95,25 @@ fn start_ui_input(entity: EntityId, uitx: channel::Sender<WorldEvent>, term: ter
             let ev = term.get_ev().unwrap();
             use termion::event::*;
             match ev {
-                Event::Key(Key::Char('w')) =>
-                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::up()))).unwrap(),
-                Event::Key(Key::Char('a')) =>
-                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::left()))).unwrap(),
-                Event::Key(Key::Char('s')) =>
-                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::down()))).unwrap(),
-                Event::Key(Key::Char('d')) =>
-                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(Dir::right()))).unwrap(),
+                Event::Key(Key::Char(ch)) if is_wasd(ch) =>
+                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Move(wasd_to_dir(ch)))).unwrap(),
+                Event::Key(Key::Char(ch)) if is_wasd(ch.to_ascii_lowercase()) =>
+                    uitx.send(WorldEvent::PlayerAction(entity, PlayerActionEvent::Attack(wasd_to_dir(ch.to_ascii_lowercase())))).unwrap(),
                 _ => ()
             }
         }
     });
+}
+
+fn is_wasd(ch: char) -> bool {
+    ch == 'w' || ch == 'a' || ch == 's' || ch == 'd'
+}
+fn wasd_to_dir(ch: char) -> Dir {
+    match ch {
+        'w' => Dir::up(),
+        'a' => Dir::left(),
+        's' => Dir::down(),
+        'd' => Dir::right(),
+        _ => unreachable!(),
+    }
 }

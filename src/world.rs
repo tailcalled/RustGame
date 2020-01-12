@@ -34,6 +34,7 @@ impl Default for World {
 pub struct Entity {
     pub pos: Vec,
     pub kind: EntityKind,
+    pub hp: Option<(i64, i64)>
 }
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum EntityKind {
@@ -53,6 +54,7 @@ impl Entity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlayerActionEvent {
     Move(Dir),
+    Attack(Dir),
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorldEvent {
@@ -87,6 +89,10 @@ impl World {
                 if w.get_entities_at(w.entities.get(&id).unwrap().pos + dir.to_vec()).next().is_none() {
                     w.entities.modify(id, |player| player.pos += dir.to_vec())
                 },
+            PlayerAction(id, PlayerActionEvent::Attack(dir)) =>
+                for id in w.get_entities_at(w.entities.get(&id).unwrap().pos + dir.to_vec()).map(|(id, _)| id).collect::<vec::Vec<_>>() {
+                    w.hurt(&mut evs, id, 1)
+                },
             SpawnEntity(id, entity_data) =>
                 w.entities.insert_mut(id, entity_data),
             DeleteEntity(id) =>
@@ -102,6 +108,7 @@ impl World {
         WorldEvent::CreateEntity(Entity {
             pos: Vec::new(0, 0),
             kind: EntityKind::Player(id),
+            hp: Some((10, 10)),
         })
     }
     pub fn create_player_exit_event(&self, id: ClientId) -> Option<WorldEvent> {
@@ -111,6 +118,18 @@ impl World {
     }
     pub fn get_entities_at(&self, pos: Vec) -> impl Iterator<Item=(EntityId, &Entity)> {
         self.entities.iter().filter(move |(_, ent)| ent.pos == pos).map(|(eid, ent)| (*eid, ent))
+    }
+    pub fn hurt(&mut self, evs: &mut vec::Vec<(u64, WorldEvent)>, id: EntityId, dmg: i64) {
+        match self.entities.get(&id).unwrap().hp {
+            None => {}
+            Some((mut hp, max)) => {
+                hp -= dmg;
+                self.entities.modify(id, |ent| ent.hp = Some((hp, max)));
+                if hp <= 0 {
+                    evs.push((0, WorldEvent::DeleteEntity(id)));
+                }
+            }
+        }
     }
 }
 
