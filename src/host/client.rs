@@ -78,9 +78,9 @@ impl Client {
     #[must_use]
     pub fn send_event(&mut self, since_start: Duration, ev: crate::ToClientEvent) -> bool {
         if let Err(_) = self.send_events.try_send((since_start, ev)) {
-            true
-        } else {
             false
+        } else {
+            true
         }
     }
 }
