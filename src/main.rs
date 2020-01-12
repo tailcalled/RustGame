@@ -11,8 +11,10 @@ pub struct ClientId(u64);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum FromClientEvent {
+    /// Client wants to disconnect.
     Disconnect(),
-    WorldEvent(crate::world::WorldEvent),
+    /// A player event.
+    PlayerEvent(crate::world::WorldEvent),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,6 +23,25 @@ pub enum ToClientEvent {
     RemoveClientId(ClientId),
     Kick(String),
     WorldEvent(ClientId, crate::world::WorldEvent),
+}
+
+pub struct NetIOHalf {
+    pub send: crossbeam::channel::Sender<ToClientEvent>,
+    pub recv: tokio::sync::mpsc::UnboundedReceiver<FromClientEvent>,
+}
+
+pub struct WorldIOHalf {
+    pub send: tokio::sync::mpsc::UnboundedSender<FromClientEvent>,
+    pub recv: crossbeam::channel::Receiver<ToClientEvent>,
+}
+
+pub fn net_world_channel() -> (NetIOHalf, WorldIOHalf) {
+    let (to_client_send, to_client_recv) = tokio::sync::mpsc::unbounded_channel();
+    let (from_client_send, from_client_recv) = crossbeam::channel::unbounded();
+    (
+        NetIOHalf { send: from_client_send, recv: to_client_recv, },
+        WorldIOHalf { send: to_client_send, recv: from_client_recv, },
+    )
 }
 
 pub mod terminal;
