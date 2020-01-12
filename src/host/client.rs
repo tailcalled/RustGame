@@ -27,8 +27,8 @@ pub fn client_received(
     sink: Sender<ClientEvent>,
     client_id: ClientId,
     term: Terminal,
-) -> io::Result<()> {
-    let stream = Connection::new(stream)?;
+) {
+    let stream = Connection::new(stream);
 
     let inner = ClientInner {
         client_id,
@@ -40,7 +40,6 @@ pub fn client_received(
     let (send, recv) = oneshot::channel();
     let handle = spawn(start_client_task(inner, recv));
     send.send(handle).unwrap();
-    Ok(())
 }
 
 struct ClientInner {

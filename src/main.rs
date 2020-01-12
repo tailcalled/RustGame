@@ -47,6 +47,11 @@ pub fn net_world_channel(term: terminal::Terminal) -> (NetIOHalf, WorldIOHalf) {
     )
 }
 
+/// This will be called in a newly created thread dedicated to the game loop.
+pub fn create_game_loop(io: WorldIOHalf, world: world::World, my_id: ClientId) {
+    unimplemented!()
+}
+
 pub mod terminal;
 pub mod connection;
 pub mod host;
