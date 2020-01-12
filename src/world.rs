@@ -1,4 +1,5 @@
 use rpds::RedBlackTreeMap as Map;
+use archery::shared_pointer::kind::{ArcK, SharedPointerKind};
 use crate::ClientId;
 use crate::geom::*;
 use serde::{Serialize, Deserialize};
@@ -14,16 +15,16 @@ impl EntityId {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct World {
-    pub entities: Map<EntityId, Entity>,
+    pub entities: Map<EntityId, Entity, ArcK>,
     next_entity_id: EntityId,
 }
 
 impl Default for World {
     fn default() -> World {
         World {
-            entities : Map::new(),
+            entities : Map::new_with_ptr_kind(),
             next_entity_id : EntityId(0),
         }
     }
@@ -39,17 +40,18 @@ pub enum EntityKind {
     Player(ClientId),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlayerActionEvent {
     Move(Dir),
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorldEvent {
     PlayerAction(EntityId, PlayerActionEvent),
     SpawnEntity(EntityId, Entity),
     CreateEntity(Entity),
 }
 
+#[derive(Debug)]
 pub enum WorldError {
     IllegalEvent,
 }
@@ -103,7 +105,7 @@ trait MapExt {
     fn modify<F: FnOnce(&mut Self::V)>(&mut self, key: Self::K, f: F);
 }
 
-impl<K: Ord, V: Clone> MapExt for Map<K, V> {
+impl<K: Ord, V: Clone, P: SharedPointerKind> MapExt for Map<K, V, P> {
     type K = K;
     type V = V;
     fn modify<F: FnOnce(&mut V)>(&mut self, key: K, f: F) {
