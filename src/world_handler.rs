@@ -1,5 +1,5 @@
 use crossbeam::channel;
-use crossbeam::channel::{select};
+use crossbeam::channel::select;
 use crate::terminal;
 use crate::world::*;
 use crate::geom::*;
