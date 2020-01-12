@@ -12,6 +12,16 @@ pub struct World {
     pub entities: Map<EntityId, Entity>,
     next_entity_id: EntityId,
 }
+
+impl Default for World {
+    fn default() -> World {
+        World {
+            entities : Map::new(),
+            next_entity_id : EntityId(0),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Entity {
     pub pos: Vec,

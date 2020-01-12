@@ -101,20 +101,22 @@ impl TerminalState {
     fn render(&mut self) {
         print!("{}{}", AnsiValue::rgb(5,5,5).fg_string(), AnsiValue::rgb(0, 0, 0).bg_string());
         print!("{}╔", termion::cursor::Goto(1, 1));
-        for _ in 0 .. SCREEN_W+1+TERM_W {
-            print!("═");
+        for i in 0 .. SCREEN_W+1+TERM_W {
+            print!("{}", if i != SCREEN_W { "═" } else { "╤" });
         }
         print!("╗");
         for i in 0 .. HEIGHT {
-            print!("{}║", termion::cursor::Goto(1, 1+i+1));
-            print!("{}║", termion::cursor::Goto(1+1+SCREEN_W+1+TERM_W, 1+i+1));
+            print!("{}", termion::cursor::Goto(1, 1+i+1));
+            print!("{}", if i != HEIGHT - 3 { "║" } else { "╟" });
+            print!("{}", termion::cursor::Goto(1+1+SCREEN_W+1+TERM_W, 1+i+1));
+            print!("{}", if i != HEIGHT - 3 { "║" } else { "╢" });
             if i < HEIGHT - 3 {
                 print!("{}│", termion::cursor::Goto(1+1+SCREEN_W, 1+i+1));
             }
             else if i == HEIGHT - 3 {
                 print!("{}", termion::cursor::Goto(1+1, 1+i+1));
-                for _ in 0 .. SCREEN_W+1+TERM_W {
-                    print!("─");
+                for j in 0 .. SCREEN_W+1+TERM_W {
+                    print!("{}", if j != SCREEN_W { "─" } else { "┴" });
                 }
             }
         }
