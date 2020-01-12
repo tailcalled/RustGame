@@ -1,5 +1,5 @@
 use crossbeam::channel;
-use crossbeam::channel::{select};
+use crossbeam::channel::select;
 use crate::terminal;
 use crate::world::*;
 use crate::geom::*;
@@ -12,7 +12,8 @@ pub fn handle_world(world_io: WorldIOHalf, start_world: World, me: ClientId) {
     let mut uitx = Some(uitx);
     let mut self_entity = None;
     let mut agreed_world = start_world.clone();
-    let mut speculative_world = start_world;
+    let mut speculative_world;
+    loop {
     select! {
         recv(uirx) -> _ => // speculative evaluation
             {}, // TODO
@@ -46,6 +47,7 @@ pub fn handle_world(world_io: WorldIOHalf, start_world: World, me: ClientId) {
                 }
             }
         }
+    }
     }
 }
 

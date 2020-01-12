@@ -45,7 +45,7 @@ pub fn local_client(
         _handle: KillHandle::empty(),
     };
 
-    let recv = netio.recv;
+    let mut recv = netio.recv;
     tokio::spawn(async move {
         while let Some(msg) = recv.recv().await {
             let client_msg = match msg {
@@ -59,6 +59,7 @@ pub fn local_client(
                 break;
             }
         }
+        eprintln!("Local client sender shutdown.");
     });
 
     (client, worldio)
@@ -76,10 +77,15 @@ impl Client {
     #[must_use]
     pub fn send_event(&mut self, ev: crate::ToClientEvent) -> bool {
         if let Err(_) = self.send_events.try_send(ev) {
-            true
-        } else {
             false
+        } else {
+            true
         }
+    }
+}
+impl Drop for Client {
+    fn drop(&mut self) {
+        eprintln!("Dropping client {}.", self.name);
     }
 }
 
