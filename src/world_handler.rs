@@ -62,7 +62,13 @@ pub fn handle_world(world_io: WorldIOHalf, start_world: World, me: ClientId) {
                         pending_events.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
                         speculative_world = agreed_world.clone();
                         if owner == Some(me) {
-                            awaiting_events = awaiting_events.into_iter().skip_while(|(_, id, _, _)| *id != evid).skip_while(|(_, id, _, _)| *id == evid).collect();
+                            let mut iter = awaiting_events.into_iter().skip_while(|(_, id, _, _)| *id != evid).fuse();
+                            match iter.next() {
+                                None => {}
+                                Some((offset, _, _, _)) =>
+                                    est_delta = time - offset,
+                            }
+                            awaiting_events = iter.collect();
                         }
                         else {
                             // FIXME this seems dangerous...
