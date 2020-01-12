@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 #[derive(Serialize, Deserialize)]
-pub struct EntityId(usize);
+pub struct EntityId(u64);
 
 #[derive(Clone)]
 pub struct World {

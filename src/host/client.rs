@@ -83,7 +83,7 @@ async fn start_client_task(mut inner: ClientInner, recv: Recv) {
                 FromClientEvent::Disconnect() =>
                     ClientEvent::ClientDisconnect(inner.client_id, None),
 
-                FromClientEvent::WorldEvent(world) =>
+                FromClientEvent::PlayerEvent(world) =>
                     ClientEvent::WorldEvent(world),
             };
             if let Err(_) = inner.sink.send(client_msg).await {
