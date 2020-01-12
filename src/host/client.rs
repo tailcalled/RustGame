@@ -1,5 +1,5 @@
 use std::{io, error::Error};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use tokio::net::TcpStream;
 use tokio::sync::oneshot;
@@ -17,21 +17,75 @@ use crate::killable::{KillSpawn, KillHandle};
 type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 
 #[derive(Debug)]
+pub enum ClientChannel<V> {
+    Tokio(Sender<V>),
+    Crossbeam(crossbeam::channel::Sender<V>),
+}
+impl<V> ClientChannel<V> {
+    pub fn try_send(&mut self, v: V) -> Result<(), ()> {
+        match self {
+            ClientChannel::Tokio(chan) => chan.try_send(v).map_err(|_| ()),
+            ClientChannel::Crossbeam(chan) => chan.try_send(v).map_err(|_| ()),
+        }
+    }
+}
+
+pub fn local_client(
+    name: String,
+    term: crate::terminal::Terminal,
+    sink: UnboundedSender<ClientEvent>,
+) -> (Client, crate::WorldIOHalf) {
+    let (netio, worldio) = crate::net_world_channel(term);
+    let id = ClientId(0);
+    let client = Client {
+        client_id: id,
+        name,
+        addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0),
+        send_events: ClientChannel::Crossbeam(netio.send),
+        _handle: KillHandle::empty(),
+    };
+
+    let mut recv = netio.recv;
+    tokio::spawn(async move {
+        while let Some(msg) = recv.recv().await {
+            let client_msg = match msg {
+                FromClientEvent::Disconnect() =>
+                    ClientEvent::Shutdown(),
+
+                FromClientEvent::PlayerEvent(world) =>
+                    ClientEvent::WorldEvent(Some(id), world),
+            };
+            if let Err(_) = sink.send(client_msg) {
+                break;
+            }
+        }
+        eprintln!("Local client sender shutdown.");
+    });
+
+    (client, worldio)
+}
+
+#[derive(Debug)]
 pub struct Client {
     pub client_id: ClientId,
     pub name: String,
     pub addr: SocketAddr,
-    pub send_events: Sender<crate::ToClientEvent>,
+    pub send_events: ClientChannel<crate::ToClientEvent>,
     _handle: KillHandle,
 }
 impl Client {
     #[must_use]
     pub fn send_event(&mut self, ev: crate::ToClientEvent) -> bool {
         if let Err(_) = self.send_events.try_send(ev) {
-            true
-        } else {
             false
+        } else {
+            true
         }
+    }
+}
+impl Drop for Client {
+    fn drop(&mut self) {
+        eprintln!("Dropping client {}.", self.name);
     }
 }
 
@@ -89,7 +143,7 @@ async fn start_client_task(mut inner: ClientInner, handle: KillHandle) {
     let client = Client {
         client_id: inner.client_id,
         addr: inner.addr,
-        send_events: event_send,
+        send_events: ClientChannel::Tokio(event_send),
         name,
         _handle: handle,
     };

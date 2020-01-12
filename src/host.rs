@@ -26,18 +26,20 @@ pub enum ClientEvent {
     ClientConnected(Client, oneshot::Sender<World>),
     ClientDisconnect(ClientId, Option<BoxErr>),
     WorldEvent(Option<ClientId>, crate::world::WorldEvent),
+    Shutdown(),
 }
 
-pub async fn host_game(term: Terminal) {
-    match host_game_real(term.clone()).await {
+pub async fn host_game(term: Terminal, local_name: String) {
+    match host_game_real(term.clone(), local_name).await {
         Err(err) => {
-            let _ = term.println(format!("Error in host: {}", err));
+            eprintln!("Error in host: {}", err);
         },
         Ok(()) => {},
     }
 }
 async fn host_game_real(
-    term: Terminal
+    term: Terminal,
+    local_name: String,
 ) -> io::Result<()> {
     let accept = Acceptor::new().await?;
     fn to_ip(addr: get_if_addrs::IfAddr) -> String {
@@ -59,9 +61,25 @@ async fn host_game_real(
     let _ = term.println(format!("Listening on {}", string));
 
     let mut host = Host::new();
-    let mut next_client_id = 0;
+    let mut next_client_id = 1;
 
     let (sink, mut client_events) = mpsc::unbounded_channel();
+
+    // spawn local client
+    let (local_client, worldio) = self::client::local_client(
+        local_name, term.clone(), sink.clone()
+    );
+    let local_id = local_client.client_id;
+
+    let (local_world_send, local_world_recv) = oneshot::channel();
+    tokio::spawn(async move {
+        let world = local_world_recv.await.unwrap();
+        std::thread::Builder::new().name("game loop".to_string())
+            .spawn(move || {
+                crate::create_game_loop(worldio, world, local_id);
+            }).unwrap();
+    });
+    sink.send(ClientEvent::ClientConnected(local_client, local_world_send)).unwrap();
 
     let accept_sink = sink.clone();
     let term_accept = term.clone();
@@ -90,18 +108,25 @@ async fn host_game_real(
     }));
 
     while let Some(event) = client_events.recv().await {
+        eprintln!("Event: {:?}", event);
         match event {
             ClientEvent::ClientConnected(client, world_send) => {
                 // Broadcast new client id
                 host.broadcast(ToClientEvent::NewClientId(client.client_id));
 
+                eprintln!("Got client {}.", client.client_id.0);
+
                 // Add to list of clients.
                 let id = client.client_id;
                 host.add_client(client);
 
+                eprintln!("Sending world.");
+
                 // Send world to new client.
                 let world = host.third_world.clone();
                 let _ = world_send.send(world);
+
+                eprintln!("Creating world entity.");
 
                 // Create world event for entity.
                 let ev = World::create_player_spawn_event(id);
@@ -111,24 +136,26 @@ async fn host_game_real(
                 sink.send(ev).unwrap();
             },
             ClientEvent::ClientDisconnect(id, Some(err)) => {
-                host.clients.remove(&id);
+                let removed = host.clients.remove(&id).unwrap();
 
                 host.broadcast(ToClientEvent::RemoveClientId(id));
 
+                eprintln!("Disconnected {}: {}", removed.name, err);
                 let _ = term.println(format!(
                     "Disconnected {}: {}",
-                    host.clients.get(&id).unwrap().name,
+                    removed.name,
                     err
                 ));
             },
             ClientEvent::ClientDisconnect(id, None) => {
-                host.clients.remove(&id);
+                let removed = host.clients.remove(&id).unwrap();
 
                 host.broadcast(ToClientEvent::RemoveClientId(id));
 
+                eprintln!("Disconnected {}", removed.name);
                 let _ = term.println(format!(
                     "Disconnected {}.",
-                    host.clients.get(&id).unwrap().name,
+                    removed.name,
                 ));
             },
             ClientEvent::WorldEvent(id, event) =>
@@ -172,8 +199,14 @@ async fn host_game_real(
                         }
                     },
                 },
+            ClientEvent::Shutdown() => {
+                host.broadcast(ToClientEvent::Kick("Server shutting down.".into()));
+                return Ok(());
+            },
         }
     }
+
+    eprintln!("client_events empty");
 
     Ok(())
 }
@@ -201,7 +234,7 @@ impl Host {
         #[allow(unreachable_code)]
         Host {
             clients: HashMap::new(),
-            third_world: unimplemented!(),
+            third_world: Default::default(),
         }
     }
     pub fn add_client(&mut self, client: client::Client) {

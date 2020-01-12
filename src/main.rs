@@ -55,6 +55,7 @@ pub fn create_game_loop(io: WorldIOHalf, world: world::World, my_id: ClientId) {
 pub mod terminal;
 pub mod connection;
 pub mod host;
+pub mod join;
 pub mod killable;
 pub mod world;
 pub mod geom;
@@ -72,15 +73,18 @@ fn main() -> Result<(), Box<dyn Error>>{
     term.println(" * host -- host a game")?;
     term.println(" * join <address> -- join the game hosted at address")?;
     let choice = term.readln("Please pick an option to start the game.")?;
+    eprintln!("Foo");
     match choice.as_str().trim() {
         "host" => {
-            runtime.block_on(host::host_game(term.clone()));
+            runtime.block_on(host::host_game(term.clone(), username));
         }
         value if value.starts_with("join ") => {
-
+            let ip = value[4..].trim().to_string();
+            runtime.block_on(join::join_game(term.clone(), ip, username));
         }
         _ =>
             term.println("Command not understood.")?
     }
+    eprintln!("Bar");
     Ok(())
 }

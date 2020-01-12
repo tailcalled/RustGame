@@ -47,6 +47,11 @@ pub struct KillHandle {
     inner: AtomicTake<Sender<()>>,
 }
 impl KillHandle {
+    pub fn empty() -> Self {
+        KillHandle {
+            inner: AtomicTake::empty(),
+        }
+    }
     pub fn kill(&self) {
         if let Some(chan) = self.inner.take() {
             let _ = chan.send(());
