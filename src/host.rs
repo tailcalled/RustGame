@@ -26,10 +26,11 @@ pub enum ClientEvent {
     ClientConnected(Client, oneshot::Sender<World>),
     ClientDisconnect(ClientId, Option<BoxErr>),
     WorldEvent(Option<ClientId>, crate::world::WorldEvent),
+    Shutdown(),
 }
 
-pub async fn host_game(term: Terminal) {
-    match host_game_real(term.clone()).await {
+pub async fn host_game(term: Terminal, local_name: String) {
+    match host_game_real(term.clone(), local_name).await {
         Err(err) => {
             let _ = term.println(format!("Error in host: {}", err));
         },
@@ -37,7 +38,8 @@ pub async fn host_game(term: Terminal) {
     }
 }
 async fn host_game_real(
-    term: Terminal
+    term: Terminal,
+    local_name: String,
 ) -> io::Result<()> {
     let accept = Acceptor::new().await?;
     fn to_ip(addr: get_if_addrs::IfAddr) -> String {
@@ -59,9 +61,25 @@ async fn host_game_real(
     let _ = term.println(format!("Listening on {}", string));
 
     let mut host = Host::new();
-    let mut next_client_id = 0;
+    let mut next_client_id = 1;
 
     let (sink, mut client_events) = mpsc::unbounded_channel();
+
+    // spawn local client
+    let (local_client, worldio) = self::client::local_client(
+        local_name, term.clone(), sink.clone()
+    );
+    let local_id = local_client.client_id;
+
+    let (local_world_send, local_world_recv) = oneshot::channel();
+    let world = host.third_world.clone();
+    tokio::spawn(async move {
+        let world = local_world_recv.await.unwrap();
+        std::thread::spawn(move || {
+            crate::create_game_loop(worldio, world, local_id);
+        });
+    });
+    sink.send(ClientEvent::ClientConnected(local_client, local_world_send)).unwrap();
 
     let accept_sink = sink.clone();
     let term_accept = term.clone();
@@ -172,6 +190,10 @@ async fn host_game_real(
                         }
                     },
                 },
+            ClientEvent::Shutdown() => {
+                host.broadcast(ToClientEvent::Kick("Server shutting down.".into()));
+                return Ok(());
+            },
         }
     }
 
