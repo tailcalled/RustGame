@@ -41,4 +41,8 @@ impl Dir {
     pub fn to_vec(self) -> Vec {
         self.0
     }
+    pub fn left() -> Dir { Dir(Vec::new(-1, 0)) }
+    pub fn right() -> Dir { Dir(Vec::new(1, 0)) }
+    pub fn up() -> Dir { Dir(Vec::new(0, -1)) }
+    pub fn down() -> Dir { Dir(Vec::new(0, 1)) }
 }

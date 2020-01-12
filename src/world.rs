@@ -40,6 +40,16 @@ pub enum EntityKind {
     Player(ClientId),
 }
 
+impl Entity {
+    pub fn is_player(&self, client: ClientId) -> bool {
+        match self.kind {
+            EntityKind::Player(e_client) => e_client == client,
+            //_ => false
+        }
+    }
+}
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlayerActionEvent {
     Move(Dir),
@@ -66,11 +76,8 @@ impl World {
             (Some(client), PlayerAction(id, _)) =>
                 match w.entities.get(&id) {
                     None => Err(WorldError::IllegalEvent)?, // trying to move nonexistent player -- unauthorized, fail
-                    Some(e) =>
-                        match e.kind {
-                            EntityKind::Player(entity_client) if entity_client == client => {} // authorized -- continue
-                            _ => Err(WorldError::IllegalEvent)? // trying to move entity other than self -- unauthorized, fail
-                        }
+                    Some(e) if e.is_player(client) => {} // authorized -- continue
+                    _ => Err(WorldError::IllegalEvent)? // trying to move entity other than self -- unauthorized, fail
                 }
             (Some(_), _) => Err(WorldError::IllegalEvent)?
         }

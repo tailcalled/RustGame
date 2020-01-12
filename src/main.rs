@@ -49,7 +49,7 @@ pub fn net_world_channel(term: terminal::Terminal) -> (NetIOHalf, WorldIOHalf) {
 
 /// This will be called in a newly created thread dedicated to the game loop.
 pub fn create_game_loop(io: WorldIOHalf, world: world::World, my_id: ClientId) {
-    unimplemented!()
+    world_handler::handle_world(io, world, my_id)
 }
 
 pub mod terminal;
@@ -59,6 +59,7 @@ pub mod killable;
 pub mod world;
 pub mod geom;
 pub mod renderer;
+pub mod world_handler;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let mut runtime = tokio::runtime::Runtime::new()?;
