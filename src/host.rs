@@ -10,7 +10,7 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
-use crate::{ClientId, ToClientEvent};
+use crate::{ClientId, ToClientEvent, EventId, gen_event_id};
 use crate::killable::{spawn, KillHandle};
 use crate::terminal::Terminal;
 use crate::world::World;
@@ -25,7 +25,7 @@ type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 pub enum ClientEvent {
     ClientConnected(Client, oneshot::Sender<World>),
     ClientDisconnect(ClientId, Option<BoxErr>),
-    WorldEvent(Option<ClientId>, crate::world::WorldEvent),
+    WorldEvent(EventId, Option<ClientId>, crate::world::WorldEvent),
     Shutdown(),
 }
 
@@ -107,12 +107,13 @@ async fn host_game_real(
         }
     }));
 
+    let server_start_time = Instant::now();
     while let Some(event) = client_events.recv().await {
         eprintln!("Event: {:?}", event);
         match event {
             ClientEvent::ClientConnected(client, world_send) => {
                 // Broadcast new client id
-                host.broadcast(ToClientEvent::NewClientId(client.client_id));
+                host.broadcast(Instant::now() - server_start_time, ToClientEvent::NewClientId(client.client_id));
 
                 eprintln!("Got client {}.", client.client_id.0);
 
@@ -130,7 +131,7 @@ async fn host_game_real(
 
                 // Create world event for entity.
                 let ev = World::create_player_spawn_event(id);
-                let ev = ClientEvent::WorldEvent(None, ev);
+                let ev = ClientEvent::WorldEvent(gen_event_id(), None, ev);
 
                 // This send wont fail -- the receiver is up there in the while loop.
                 sink.send(ev).unwrap();
@@ -138,7 +139,7 @@ async fn host_game_real(
             ClientEvent::ClientDisconnect(id, Some(err)) => {
                 let removed = host.clients.remove(&id).unwrap();
 
-                host.broadcast(ToClientEvent::RemoveClientId(id));
+                host.broadcast(Instant::now() - server_start_time, ToClientEvent::RemoveClientId(id));
 
                 eprintln!("Disconnected {}: {}", removed.name, err);
                 let _ = term.println(format!(
@@ -150,7 +151,7 @@ async fn host_game_real(
             ClientEvent::ClientDisconnect(id, None) => {
                 let removed = host.clients.remove(&id).unwrap();
 
-                host.broadcast(ToClientEvent::RemoveClientId(id));
+                host.broadcast(Instant::now() - server_start_time, ToClientEvent::RemoveClientId(id));
 
                 eprintln!("Disconnected {}", removed.name);
                 let _ = term.println(format!(
@@ -158,20 +159,19 @@ async fn host_game_real(
                     removed.name,
                 ));
             },
-            ClientEvent::WorldEvent(id, event) =>
+            ClientEvent::WorldEvent(evid, id, event) =>
                 match host.third_world.handle_event(id, event.clone()) {
                     Ok((next_world, mut events)) => {
-                        host.broadcast(ToClientEvent::WorldEvent(id, event));
-                        host.third_world = next_world;
-
                         let now = Instant::now();
+                        host.broadcast(now - server_start_time, ToClientEvent::WorldEvent(evid, id, event));
+                        host.third_world = next_world;
 
                         // Sort events by decreasing time
                         events.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
                         // Send events with time zero
                         while let Some((0, _)) = events.last() {
                             let ev = events.pop().unwrap().1;
-                            let _ = sink.send(ClientEvent::WorldEvent(None, ev));
+                            let _ = sink.send(ClientEvent::WorldEvent(gen_event_id(), None, ev));
                         }
                         // Send the remaining using timers
                         if events.len() > 0 {
@@ -179,7 +179,7 @@ async fn host_game_real(
                             tokio::spawn(async move {
                                 for (time, ev) in events.into_iter().rev() {
                                     delay_until(now + Duration::from_millis(time)).await;
-                                    match sink.send(ClientEvent::WorldEvent(None, ev)) {
+                                    match sink.send(ClientEvent::WorldEvent(gen_event_id(), None, ev)) {
                                         Ok(()) => {},
                                         Err(_) => return,
                                     }
@@ -190,7 +190,7 @@ async fn host_game_real(
                     Err(error) => {
                         if let Some(id) = id {
                             let mut client = host.clients.remove(&id).unwrap();
-                            let _ = client.send_event(ToClientEvent::Kick(
+                            let _ = client.send_event(Instant::now() - server_start_time, ToClientEvent::Kick(
                                     format!("Third world error: {:?}", error)));
                         } else {
                             term.println(
@@ -200,7 +200,7 @@ async fn host_game_real(
                     },
                 },
             ClientEvent::Shutdown() => {
-                host.broadcast(ToClientEvent::Kick("Server shutting down.".into()));
+                host.broadcast(Instant::now() - server_start_time, ToClientEvent::Kick("Server shutting down.".into()));
                 return Ok(());
             },
         }
@@ -216,10 +216,10 @@ struct Host {
     third_world: World,
 }
 impl Host {
-    pub fn broadcast(&mut self, msg: ToClientEvent) {
+    pub fn broadcast(&mut self, since_start: Duration, msg: ToClientEvent) {
         let mut remove = Vec::new();
         for client in self.clients.values_mut() {
-            if !client.send_event(msg.clone()) {
+            if !client.send_event(since_start, msg.clone()) {
                 remove.push(client.client_id);
             }
         }

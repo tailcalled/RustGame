@@ -1,5 +1,6 @@
 use std::{io, error::Error};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::time::Duration;
 
 use tokio::net::TcpStream;
 use tokio::sync::oneshot;
@@ -52,8 +53,8 @@ pub fn local_client(
                 FromClientEvent::Disconnect() =>
                     ClientEvent::Shutdown(),
 
-                FromClientEvent::PlayerEvent(world) =>
-                    ClientEvent::WorldEvent(Some(id), world),
+                FromClientEvent::PlayerEvent(evid, world) =>
+                    ClientEvent::WorldEvent(evid, Some(id), world),
             };
             if let Err(_) = sink.send(client_msg) {
                 break;
@@ -70,16 +71,16 @@ pub struct Client {
     pub client_id: ClientId,
     pub name: String,
     pub addr: SocketAddr,
-    pub send_events: ClientChannel<crate::ToClientEvent>,
+    pub send_events: ClientChannel<(Duration, crate::ToClientEvent)>,
     _handle: KillHandle,
 }
 impl Client {
     #[must_use]
-    pub fn send_event(&mut self, ev: crate::ToClientEvent) -> bool {
-        if let Err(_) = self.send_events.try_send(ev) {
-            false
-        } else {
+    pub fn send_event(&mut self, since_start: Duration, ev: crate::ToClientEvent) -> bool {
+        if let Err(_) = self.send_events.try_send((since_start, ev)) {
             true
+        } else {
+            false
         }
     }
 }
@@ -217,8 +218,8 @@ impl ClientReceiver {
             let client_msg = match msg {
                 FromClientEvent::Disconnect() => return Ok(()),
 
-                FromClientEvent::PlayerEvent(world) =>
-                    ClientEvent::WorldEvent(Some(self.client_id), world),
+                FromClientEvent::PlayerEvent(evid, world) =>
+                    ClientEvent::WorldEvent(evid, Some(self.client_id), world),
             };
             if let Err(_) = self.sink.send(client_msg) {
                 break Ok(());
@@ -228,17 +229,17 @@ impl ClientReceiver {
 }
 
 struct ClientSender {
-    msgs: Receiver<crate::ToClientEvent>,
+    msgs: Receiver<(Duration, crate::ToClientEvent)>,
     output: ConnectionOut,
     _kill: KillHandle,
 }
 impl ClientSender {
     pub async fn handle_output(mut self) -> io::Result<()> {
         while let Some(msg) = self.msgs.recv().await {
-            self.output.send::<crate::ToClientEvent>(&msg).await?;
+            self.output.send::<(Duration, crate::ToClientEvent)>(&msg).await?;
         }
-        self.output.send(
-            &crate::ToClientEvent::Kick("Client dropped".to_string())).await?;
+        self.output.send(&(Duration::new(0, 0), // FIXME get the time since server start in here somehow
+            crate::ToClientEvent::Kick("Client dropped".to_string()))).await?;
         Ok(())
     }
 }

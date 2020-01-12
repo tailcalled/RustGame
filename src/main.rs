@@ -1,5 +1,7 @@
 use std::error::Error;
+use std::time::Duration;
 use serde::{Serialize, Deserialize};
+use rand::random;
 
 #[derive(Debug)]
 pub enum LobbyCommand {
@@ -9,12 +11,19 @@ pub enum LobbyCommand {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ClientId(u64);
 
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EventId(u64);
+
+pub fn gen_event_id() -> EventId {
+    EventId(random())
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum FromClientEvent {
     /// Client wants to disconnect.
     Disconnect(),
     /// A player event.
-    PlayerEvent(crate::world::WorldEvent),
+    PlayerEvent(EventId, crate::world::WorldEvent),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,19 +31,19 @@ pub enum ToClientEvent {
     NewClientId(ClientId),
     RemoveClientId(ClientId),
     Kick(String),
-    WorldEvent(Option<ClientId>, crate::world::WorldEvent),
+    WorldEvent(EventId, Option<ClientId>, crate::world::WorldEvent),
 }
 
 pub struct NetIOHalf {
     pub term: terminal::Terminal,
-    pub send: crossbeam::channel::Sender<ToClientEvent>,
+    pub send: crossbeam::channel::Sender<(Duration, ToClientEvent)>,
     pub recv: tokio::sync::mpsc::UnboundedReceiver<FromClientEvent>,
 }
 
 pub struct WorldIOHalf {
     pub term: terminal::Terminal,
     pub send: tokio::sync::mpsc::UnboundedSender<FromClientEvent>,
-    pub recv: crossbeam::channel::Receiver<ToClientEvent>,
+    pub recv: crossbeam::channel::Receiver<(Duration, ToClientEvent)>,
 }
 
 pub fn net_world_channel(term: terminal::Terminal) -> (NetIOHalf, WorldIOHalf) {

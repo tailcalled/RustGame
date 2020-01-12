@@ -3,6 +3,7 @@ use futures::future::try_join;
 
 use std::io;
 use std::error::Error;
+use std::time::Duration;
 
 use crate::{ClientId, FromClientEvent, ToClientEvent};
 use crate::world::World;
@@ -69,7 +70,7 @@ async fn join_game_real(
     });
 
     loop {
-        let msg = input.recv::<ToClientEvent>().await?;
+        let msg = input.recv::<(Duration, ToClientEvent)>().await?;
         if let Err(_) = send.send(msg) {
             break;
         }
