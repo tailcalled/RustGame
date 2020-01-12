@@ -113,24 +113,19 @@ async fn host_game_real(
         match event {
             ClientEvent::ClientConnected(client, world_send) => {
                 // Broadcast new client id
-                host.broadcast(Instant::now() - server_start_time, ToClientEvent::NewClientId(client.client_id));
-
-                eprintln!("Got client {}.", client.client_id.0);
+                host.broadcast(Instant::now() - server_start_time,
+                    ToClientEvent::NewClientId(client.client_id));
 
                 // Add to list of clients.
                 let id = client.client_id;
                 host.add_client(client);
 
-                eprintln!("Sending world.");
-
                 // Send world to new client.
                 let world = host.third_world.clone();
                 let _ = world_send.send(world);
 
-                eprintln!("Creating world entity.");
-
                 // Create world event for entity.
-                let ev = World::create_player_spawn_event(id);
+                let ev = host.third_world.create_player_spawn_event(id);
                 let ev = ClientEvent::WorldEvent(gen_event_id(), None, ev);
 
                 // This send wont fail -- the receiver is up there in the while loop.
@@ -139,9 +134,15 @@ async fn host_game_real(
             ClientEvent::ClientDisconnect(id, Some(err)) => {
                 let removed = host.clients.remove(&id).unwrap();
 
-                host.broadcast(Instant::now() - server_start_time, ToClientEvent::RemoveClientId(id));
+                let ev = host.third_world.create_player_exit_event(removed.client_id);
+                if let Some(ev) = ev {
+                    let ev = ClientEvent::WorldEvent(gen_event_id(), None, ev);
+                    sink.send(ev).unwrap();
+                }
 
-                eprintln!("Disconnected {}: {}", removed.name, err);
+                host.broadcast(Instant::now() - server_start_time,
+                    ToClientEvent::RemoveClientId(id));
+
                 let _ = term.println(format!(
                     "Disconnected {}: {}",
                     removed.name,
@@ -153,7 +154,6 @@ async fn host_game_real(
 
                 host.broadcast(Instant::now() - server_start_time, ToClientEvent::RemoveClientId(id));
 
-                eprintln!("Disconnected {}", removed.name);
                 let _ = term.println(format!(
                     "Disconnected {}.",
                     removed.name,
@@ -205,8 +205,6 @@ async fn host_game_real(
             },
         }
     }
-
-    eprintln!("client_events empty");
 
     Ok(())
 }

@@ -58,6 +58,7 @@ pub enum PlayerActionEvent {
 pub enum WorldEvent {
     PlayerAction(EntityId, PlayerActionEvent),
     SpawnEntity(EntityId, Entity),
+    DeleteEntity(EntityId),
     CreateEntity(Entity),
 }
 
@@ -88,6 +89,8 @@ impl World {
                 },
             SpawnEntity(id, entity_data) =>
                 w.entities.insert_mut(id, entity_data),
+            DeleteEntity(id) =>
+                drop(w.entities.remove_mut(&id)),
             CreateEntity(entity_data) => {
                 evs.push((0, SpawnEntity(w.next_entity_id, entity_data)));
                 w.next_entity_id = w.next_entity_id.next();
@@ -95,11 +98,16 @@ impl World {
         }
         Ok((w, evs))
     }
-    pub fn create_player_spawn_event(id: ClientId) -> WorldEvent {
+    pub fn create_player_spawn_event(&self, id: ClientId) -> WorldEvent {
         WorldEvent::CreateEntity(Entity {
             pos: Vec::new(0, 0),
             kind: EntityKind::Player(id),
         })
+    }
+    pub fn create_player_exit_event(&self, id: ClientId) -> Option<WorldEvent> {
+        self.entities.iter()
+            .find(|(_eid, entity)| entity.is_player(id))
+            .map(|(eid, _)| WorldEvent::DeleteEntity(*eid))
     }
     pub fn get_entities_at(&self, pos: Vec) -> impl Iterator<Item=(EntityId, &Entity)> {
         self.entities.iter().filter(move |(_, ent)| ent.pos == pos).map(|(eid, ent)| (*eid, ent))
