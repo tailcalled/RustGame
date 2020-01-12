@@ -3,7 +3,7 @@ use crossbeam::channel::{select};
 use crate::terminal;
 use crate::world::*;
 use crate::geom::*;
-use crate::{WorldIOHalf, ClientId, ToClientEvent};
+use crate::{WorldIOHalf, ClientId, ToClientEvent, FromClientEvent};
 use crate::renderer;
 use std::thread;
 
@@ -14,8 +14,10 @@ pub fn handle_world(world_io: WorldIOHalf, start_world: World, me: ClientId) {
     let mut agreed_world = start_world.clone();
     let mut speculative_world = start_world;
     select! {
-        recv(uirx) -> _ => // speculative evaluation
-            {}, // TODO
+        recv(uirx) -> msg => { // speculative evaluation, TODO
+                let msg = msg.unwrap();
+                world_io.send.send(FromClientEvent::PlayerEvent(msg)).unwrap();
+            },
         recv(world_io.recv) -> msg => { // definitive evaluation
             let msg = msg.unwrap();
             match (&mut uitx, &msg) {
