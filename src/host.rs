@@ -73,16 +73,13 @@ async fn host_game_real(
                     return;
                 },
             };
-            if let Err(err) = self::client::client_received(
+            self::client::client_received(
                 stream,
                 addr,
                 sink,
                 id,
                 term_accept.clone(),
-            ) {
-                let _ = term_accept.println(
-                    format!("Failed while receiving client: {}", err));
-            }
+            );
         }
     }));
 

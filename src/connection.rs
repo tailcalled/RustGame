@@ -9,13 +9,13 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream) -> io::Result<Self> {
+    pub fn new(stream: TcpStream) -> Self {
         let (a, b) = tokio::io::split(stream);
-        Ok(Connection {
+        Connection {
             stream_in: BufReader::new(a),
             stream_out: b,
             buffer: Vec::with_capacity(1024),
-        })
+        }
     }
     pub async fn send<Msg: Serialize>(&mut self, msg: &Msg) -> io::Result<()> {
         self.buffer.clear();

@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize)]
 pub struct EntityId(u64);
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct World {
     pub entities: Map<EntityId, Entity>,
     next_entity_id: EntityId,
@@ -22,12 +22,12 @@ impl Default for World {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Entity {
     pub pos: Vec,
     pub kind: EntityKind,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum EntityKind {
     Player(ClientId),
 }
