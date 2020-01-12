@@ -1,8 +1,10 @@
 use rpds::RedBlackTreeMap as Map;
-use crate::host::ClientId;
+use crate::ClientId;
 use crate::geom::*;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub struct EntityId(usize);
 
 #[derive(Clone)]
@@ -20,9 +22,11 @@ pub enum EntityKind {
     Player(ClientId),
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum PlayerActionEvent {
     Move(Dir),
 }
+#[derive(Debug, Serialize, Deserialize)]
 pub enum WorldEvent {
     PlayerAction(EntityId, PlayerActionEvent),
 }

@@ -1,6 +1,5 @@
 use tokio::net::{TcpStream, TcpListener};
 use tokio::sync::mpsc::{self, Sender, Receiver};
-
 use futures::stream::StreamExt;
 
 use std::io;
@@ -8,6 +7,7 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
+use crate::ClientId;
 use crate::killable::{spawn, KillHandle};
 use crate::terminal::Terminal;
 use get_if_addrs::get_if_addrs;
@@ -20,10 +20,8 @@ type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 pub enum ClientEvent {
     ClientConnected(Client),
     ClientDisconnect(ClientId, Option<BoxErr>),
+    WorldEvent(crate::world::WorldEvent),
 }
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct ClientId(u64);
 
 pub async fn host_game(term: Terminal) {
     match host_game_real(term.clone()).await {
@@ -104,6 +102,7 @@ async fn host_game_real(
                     host.clients.get(&id).unwrap().name,
                 ));
             },
+            _ => unimplemented!(),
         }
     }
 

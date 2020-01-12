@@ -6,12 +6,21 @@ pub enum LobbyCommand {
     StartGame
 }
 
-#[derive(Serialize, Deserialize)]
-pub enum WorldEvent {}
-#[derive(Serialize, Deserialize)]
-pub enum ReceiveEvent {
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ClientId(u64);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum FromClientEvent {
     Disconnect(),
-    WorldEvent(WorldEvent),
+    WorldEvent(crate::world::WorldEvent),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ToClientEvent {
+    NewClientId(ClientId),
+    RemoveClientId(ClientId),
+    Kick(String),
+    WorldEvent(ClientId, crate::world::WorldEvent),
 }
 
 pub mod terminal;

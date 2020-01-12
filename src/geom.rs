@@ -1,8 +1,10 @@
 use std::ops::*;
+use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Vec { pub x: i32, pub y:i32 }
-#[derive(Copy, Clone, Eq, PartialEq)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Dir(Vec);
 
 impl Add for Vec {

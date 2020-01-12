@@ -1,4 +1,4 @@
-use crate::world::{World, EntityId, Entity};
+use crate::world::{World, EntityId};
 use crate::terminal::Scene;
 use crate::terminal;
 use crate::geom::Vec;

@@ -5,10 +5,10 @@ use tokio::net::TcpStream;
 use tokio::sync::oneshot;
 use tokio::sync::mpsc::Sender;
 
-use crate::ReceiveEvent;
+use crate::{FromClientEvent, ClientId};
 use crate::terminal::Terminal;
 use crate::connection::Connection;
-use crate::host::{ClientEvent, ClientId};
+use crate::host::ClientEvent;
 use crate::killable::{spawn, KillHandle};
 
 type BoxErr = Box<dyn Error + Send + Sync + 'static>;
@@ -78,11 +78,13 @@ async fn start_client_task(mut inner: ClientInner, recv: Recv) {
 
     match async {
         loop {
-            let msg: ReceiveEvent = inner.stream.recv().await?;
+            let msg: FromClientEvent = inner.stream.recv().await?;
             let client_msg = match msg {
-                ReceiveEvent::Disconnect() =>
+                FromClientEvent::Disconnect() =>
                     ClientEvent::ClientDisconnect(inner.client_id, None),
-                ReceiveEvent::WorldEvent(world) => match world {},
+
+                FromClientEvent::WorldEvent(world) =>
+                    ClientEvent::WorldEvent(world),
             };
             if let Err(_) = inner.sink.send(client_msg).await {
                 break Ok(());
