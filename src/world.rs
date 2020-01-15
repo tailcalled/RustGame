@@ -37,19 +37,103 @@ impl Default for World {
 pub struct Entity {
     pub pos: Vec,
     pub kind: EntityKind,
-    pub hp: Option<(i64, i64)>
+    pub hp: Option<(i64, i64)>,
+    pub inventory: Option<Inventory>,
 }
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum EntityKind {
     Player(ClientId),
+    Treasure, // items available to be picked up on the ground
 }
 
 impl Entity {
     pub fn is_player(&self, client: ClientId) -> bool {
         match self.kind {
             EntityKind::Player(e_client) => e_client == client,
-            //_ => false
+            _ => false
         }
+    }
+    pub fn has_collision(&self) -> bool {
+        match self.kind {
+            EntityKind::Player(_) => true,
+            EntityKind::Treasure => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Inventory {
+    items: vec::Vec<(Item, usize)>,
+    cap: usize,  // TODO
+}
+
+impl Inventory {
+    fn insert(&mut self, item: Item) -> bool {
+        if self.items.len() >= self.cap {
+            return false;
+        }
+        if item.kind.stacks() {
+            for (it, size) in self.items.iter_mut() {
+                if it.stacks_with(&item) {
+                    *size += 1;
+                    return true;
+                }
+            }
+        }
+        self.items.push((item, 1));
+        return true;
+    }
+    fn insert_inventory(&mut self, other: &mut Inventory) {
+        while let Some((item, count)) = other.items.last_mut() {
+            if self.insert(item.clone()) {
+                *count -= 1;
+                if *count == 0 {
+                    other.items.pop();
+                }
+            }
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.items.len() == 0
+    }
+    pub fn count(&self) -> usize {
+        self.items.iter().map(|(_, ct)| ct).sum()
+    }
+    fn drop(self, pos: Vec) -> WorldEvent {
+        WorldEvent::CreateEntity(Entity {
+            pos: pos,
+            kind: EntityKind::Treasure,
+            hp: None,
+            inventory: Some(self),
+        })
+    }
+    fn of_item(item: Item) -> Inventory {
+        Inventory {
+            items: vec![(item, 1)],
+            cap: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Item {
+    kind: ItemKind,
+}
+
+impl Item {
+    fn stacks_with(&self, it: &Item) -> bool {
+        self.kind.stacks() && self.kind == it.kind
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum ItemKind {
+    Log,
+}
+
+impl ItemKind {
+    fn stacks(&self) -> bool {
+        true
     }
 }
 
@@ -137,6 +221,7 @@ pub enum WorldEvent {
     SpawnEntity(EntityId, Entity),
     DeleteEntity(EntityId),
     CreateEntity(Entity),
+    Enter(EntityId, Vec),
 }
 
 #[derive(Debug)]
@@ -160,10 +245,13 @@ impl World {
             (Some(_), _) => Err(WorldError::IllegalEvent)?
         }
         match ev {
-            PlayerAction(id, PlayerActionEvent::Move(dir)) =>
-                if w.is_free(w.entities.get(&id).unwrap().pos + dir.to_vec()) {
-                    w.entities.modify(id, |player| player.pos += dir.to_vec())
-                },
+            PlayerAction(id, PlayerActionEvent::Move(dir)) => {
+                let pos = w.entities.get(&id).unwrap().pos + dir.to_vec();
+                if w.is_free(pos) {
+                    w.entities.modify(id, |player| player.pos += dir.to_vec());
+                    evs.push((0, Enter(id, pos)));
+                }
+            }
             PlayerAction(id, PlayerActionEvent::Attack(dir)) => {
                 let attack_pos = w.entities.get(&id).unwrap().pos + dir.to_vec();
                 for id in w.get_entities_at(attack_pos).map(|(id, _)| id).collect::<vec::Vec<_>>() {
@@ -176,8 +264,29 @@ impl World {
             DeleteEntity(id) =>
                 drop(w.entities.remove_mut(&id)),
             CreateEntity(entity_data) => {
-                evs.push((0, SpawnEntity(w.next_entity_id, entity_data)));
+                let id = w.next_entity_id;
+                let pos = entity_data.pos;
+                evs.push((0, SpawnEntity(id, entity_data)));
                 w.next_entity_id = w.next_entity_id.next();
+                evs.push((0, Enter(id, pos)));
+            }
+            Enter(id, pos) => {
+                if let Some(inventory) = &w.entities.get(&id).unwrap().inventory {
+                    let mut inventory = inventory.clone();
+                    for oid in w.get_entities_at(pos).map(|(id, _)| id).collect::<vec::Vec<_>>() {
+                        if oid != id {
+                            if let Some(o_inv) = &w.entities.get(&oid).unwrap().inventory {
+                                let mut o_inv = o_inv.clone();
+                                inventory.insert_inventory(&mut o_inv);
+                                if o_inv.is_empty() && w.entities.get(&oid).unwrap().kind == EntityKind::Treasure {
+                                    evs.push((0, DeleteEntity(oid)));
+                                }
+                                w.entities.modify(oid, |entity| entity.inventory = Some(o_inv));
+                            }
+                        }
+                    }
+                    w.entities.modify(id, |entity| entity.inventory = Some(inventory));
+                }
             }
         }
         Ok((w, evs))
@@ -187,6 +296,7 @@ impl World {
             pos: Vec::new(0, 0),
             kind: EntityKind::Player(id),
             hp: Some((10, 10)),
+            inventory: Some(Inventory { items: vec::Vec::new(), cap: 64 }),
         })
     }
     pub fn create_player_exit_event(&self, id: ClientId) -> Option<WorldEvent> {
@@ -210,14 +320,15 @@ impl World {
         }
     }
     fn is_free(&self, pos: Vec) -> bool {
-        self.tiles.get(pos).is_free() && self.get_entities_at(pos).next().is_none()
+        self.tiles.get(pos).is_free() && self.get_entities_at(pos).filter(|(_, ent)| ent.has_collision()).next().is_none()
     }
     fn break_tile(&mut self, evs: &mut vec::Vec<(u64, WorldEvent)>, pos: Vec) {
         let mut tile = self.tiles.get(pos);
         match tile.terrain {
             None => {}
             Some(TerrainKind::Tree) => {
-                tile.terrain = None
+                tile.terrain = None;
+                evs.push((0, Inventory::of_item(Item { kind: ItemKind::Log }).drop(pos)));
             }
             Some(_) => {}
         }

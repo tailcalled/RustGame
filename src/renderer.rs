@@ -25,6 +25,7 @@ pub fn render(world: &World, player_id: &EntityId) -> Box<Scene> {
     }
     let (hp, maxhp) = player.hp.unwrap();
     scene.write(format!("HP: {}/{}", hp, maxhp), 0, 0);
+    scene.write(format!("Inventory: {}", player.inventory.as_ref().unwrap().count()), 0, 1);
     scene
 }
 

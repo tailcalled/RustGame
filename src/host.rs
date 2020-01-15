@@ -167,7 +167,8 @@ async fn host_game_real(
                         host.third_world = next_world;
 
                         // Sort events by decreasing time
-                        events.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
+                        events.sort_by_key(|(time, _)| *time);
+                        events.reverse();
                         // Send events with time zero
                         while let Some((0, _)) = events.last() {
                             let ev = events.pop().unwrap().1;

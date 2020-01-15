@@ -61,7 +61,6 @@ pub fn load_level() -> TileMap {
                 }
             }
             if non_empty {
-                println!("Including chunk! {} {}", cx, cy);
                 tile_map.set_chunk(cx, cy, chunk);
             }
         }
