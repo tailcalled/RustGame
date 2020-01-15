@@ -32,11 +32,6 @@ impl Default for World {
         }
     }
 }
-impl World {
-    fn is_free(&self, pos: Vec) -> bool {
-        self.tiles.get(pos).is_free() && self.get_entities_at(pos).next().is_none()
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entity {
@@ -76,15 +71,28 @@ impl TileMap {
     pub fn set_chunk(&mut self, cx: i32, cy: i32, ch: Chunk) {
         self.chunks.insert_mut((cx, cy), ch);
     }
-    pub fn get(&self, pos: Vec) -> Tile {
+    fn conv_pos(pos: Vec) -> (i32, i32, usize, usize) {
         let cx = pos.x.div_euclid(CHUNK_SIZE as i32);
         let cy = pos.y.div_euclid(CHUNK_SIZE as i32);
-        let px = pos.x.rem_euclid(CHUNK_SIZE as i32);
-        let py = pos.y.rem_euclid(CHUNK_SIZE as i32);
+        let px = pos.x.rem_euclid(CHUNK_SIZE as i32) as usize;
+        let py = pos.y.rem_euclid(CHUNK_SIZE as i32) as usize;
+        (cx, cy, px, py)
+    }
+    pub fn get(&self, pos: Vec) -> Tile {
+        let (cx, cy, px, py) = TileMap::conv_pos(pos);
         match self.chunks.get(&(cx, cy)) {
-            Some(chunk) => chunk[px as usize][py as usize].clone(),
+            Some(chunk) => chunk[px][py].clone(),
             None => Default::default(),
         }
+    }
+    pub fn set(&mut self, pos: Vec, tile: Tile) {
+        let (cx, cy, px, py) = TileMap::conv_pos(pos);
+        let mut chunk = match self.chunks.get(&(cx, cy)) {
+            Some(chunk) => chunk.clone(),
+            None => Default::default(),
+        };
+        chunk[px][py] = tile;
+        self.chunks.insert_mut((cx, cy), chunk);
     }
 }
 
@@ -156,10 +164,13 @@ impl World {
                 if w.is_free(w.entities.get(&id).unwrap().pos + dir.to_vec()) {
                     w.entities.modify(id, |player| player.pos += dir.to_vec())
                 },
-            PlayerAction(id, PlayerActionEvent::Attack(dir)) =>
-                for id in w.get_entities_at(w.entities.get(&id).unwrap().pos + dir.to_vec()).map(|(id, _)| id).collect::<vec::Vec<_>>() {
-                    w.hurt(&mut evs, id, 1)
-                },
+            PlayerAction(id, PlayerActionEvent::Attack(dir)) => {
+                let attack_pos = w.entities.get(&id).unwrap().pos + dir.to_vec();
+                for id in w.get_entities_at(attack_pos).map(|(id, _)| id).collect::<vec::Vec<_>>() {
+                    w.hurt(&mut evs, id, 1);
+                }
+                w.break_tile(&mut evs, attack_pos);
+            }
             SpawnEntity(id, entity_data) =>
                 w.entities.insert_mut(id, entity_data),
             DeleteEntity(id) =>
@@ -186,7 +197,7 @@ impl World {
     pub fn get_entities_at(&self, pos: Vec) -> impl Iterator<Item=(EntityId, &Entity)> {
         self.entities.iter().filter(move |(_, ent)| ent.pos == pos).map(|(eid, ent)| (*eid, ent))
     }
-    pub fn hurt(&mut self, evs: &mut vec::Vec<(u64, WorldEvent)>, id: EntityId, dmg: i64) {
+    fn hurt(&mut self, evs: &mut vec::Vec<(u64, WorldEvent)>, id: EntityId, dmg: i64) {
         match self.entities.get(&id).unwrap().hp {
             None => {}
             Some((mut hp, max)) => {
@@ -197,6 +208,20 @@ impl World {
                 }
             }
         }
+    }
+    fn is_free(&self, pos: Vec) -> bool {
+        self.tiles.get(pos).is_free() && self.get_entities_at(pos).next().is_none()
+    }
+    fn break_tile(&mut self, evs: &mut vec::Vec<(u64, WorldEvent)>, pos: Vec) {
+        let mut tile = self.tiles.get(pos);
+        match tile.terrain {
+            None => {}
+            Some(TerrainKind::Tree) => {
+                tile.terrain = None
+            }
+            Some(_) => {}
+        }
+        self.tiles.set(pos, tile);
     }
 }
 
