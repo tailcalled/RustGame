@@ -16,3 +16,5 @@ atomic-take = "1.0"
 rpds = { version = "0.7", features = ["serde"] }
 archery = "0.3"
 rand = "0.7"
+png_pong = "0.1"
+pix = "0.7"

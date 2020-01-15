@@ -70,6 +70,7 @@ pub mod world;
 pub mod geom;
 pub mod renderer;
 pub mod world_handler;
+pub mod level_loader;
 
 fn main() -> Result<(), Box<dyn Error>>{
     let mut runtime = tokio::runtime::Runtime::new()?;

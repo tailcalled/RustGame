@@ -4,6 +4,7 @@ use crate::ClientId;
 use crate::geom::*;
 use serde::{Serialize, Deserialize};
 use std::vec;
+use crate::level_loader;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 #[derive(Serialize, Deserialize)]
@@ -19,6 +20,7 @@ impl EntityId {
 pub struct World {
     pub entities: Map<EntityId, Entity, ArcK>,
     next_entity_id: EntityId,
+    pub tiles : TileMap,
 }
 
 impl Default for World {
@@ -26,7 +28,13 @@ impl Default for World {
         World {
             entities : Map::new_with_ptr_kind(),
             next_entity_id : EntityId(0),
+            tiles : level_loader::load_level(),
         }
+    }
+}
+impl World {
+    fn is_free(&self, pos: Vec) -> bool {
+        self.tiles.get(pos).is_free() && self.get_entities_at(pos).next().is_none()
     }
 }
 
@@ -48,6 +56,65 @@ impl Entity {
             //_ => false
         }
     }
+}
+
+pub const CHUNK_SIZE: usize = 32;
+
+pub type Chunk = [[Tile; CHUNK_SIZE]; CHUNK_SIZE];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TileMap {
+    chunks: Map<(i32, i32), Chunk, ArcK>
+}
+
+impl TileMap {
+    pub fn new() -> TileMap {
+        TileMap {
+            chunks : Map::new_with_ptr_kind()
+        }
+    }
+    pub fn set_chunk(&mut self, cx: i32, cy: i32, ch: Chunk) {
+        self.chunks.insert_mut((cx, cy), ch);
+    }
+    pub fn get(&self, pos: Vec) -> Tile {
+        let cx = pos.x.div_euclid(CHUNK_SIZE as i32);
+        let cy = pos.y.div_euclid(CHUNK_SIZE as i32);
+        let px = pos.x.rem_euclid(CHUNK_SIZE as i32);
+        let py = pos.y.rem_euclid(CHUNK_SIZE as i32);
+        match self.chunks.get(&(cx, cy)) {
+            Some(chunk) => chunk[px as usize][py as usize].clone(),
+            None => Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct Tile {
+    pub ground: Option<GroundKind>,
+    pub terrain: Option<TerrainKind>,
+}
+
+impl Default for Tile {
+    fn default() -> Tile {
+        Tile {
+            ground : None,
+            terrain : None,
+        }
+    }
+}
+impl Tile {
+    fn is_free(self) -> bool {
+        self.ground != Some(GroundKind::Water) && self.terrain == None
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum GroundKind {
+    Grass, Rock, Water
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum TerrainKind {
+    Tree, Cliff
 }
 
 
@@ -86,7 +153,7 @@ impl World {
         }
         match ev {
             PlayerAction(id, PlayerActionEvent::Move(dir)) =>
-                if w.get_entities_at(w.entities.get(&id).unwrap().pos + dir.to_vec()).next().is_none() {
+                if w.is_free(w.entities.get(&id).unwrap().pos + dir.to_vec()) {
                     w.entities.modify(id, |player| player.pos += dir.to_vec())
                 },
             PlayerAction(id, PlayerActionEvent::Attack(dir)) =>

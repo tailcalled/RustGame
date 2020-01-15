@@ -29,14 +29,16 @@ impl Default for Scene {
     }
 }
 impl Scene {
-    pub fn set_point(&mut self, sx: i32, sy: i32, ch: char, foreground: AnsiValue, background: AnsiValue) {
+    pub fn set_point(&mut self, sx: i32, sy: i32, ch: char, foreground: AnsiValue, background: Option<AnsiValue>) {
         if !(sx < 0 || sy < 0 || sx >= SCREEN_W as i32 || sy >= SCREEN_H as i32) {
-            self.0[sx as usize][sy as usize] = ColoredChar { ch, foreground, background }
+            let sx = sx as usize; let sy = sy as usize;
+            let background = background.unwrap_or(self.0[sx][sy].background);
+            self.0[sx][sy] = ColoredChar { ch, foreground, background }
         }
     }
     pub fn write(&mut self, text: String, sx: i32, sy: i32) {
         for (ix, ch) in text.char_indices() {
-            self.set_point(sx + ix as i32, sy, ch, AnsiValue::rgb(5, 5, 5), AnsiValue::rgb(0, 0, 0));
+            self.set_point(sx + ix as i32, sy, ch, AnsiValue::rgb(5, 5, 5), Some(AnsiValue::rgb(0, 0, 0)));
         }
     }
 }
