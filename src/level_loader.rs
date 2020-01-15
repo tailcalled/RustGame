@@ -1,7 +1,7 @@
 use png_pong;
 use pix::Rgba8;
 use std::collections::HashMap;
-use crate::world::{Tile, TileMap, GroundKind, TerrainKind, Chunk, CHUNK_SIZE};
+use crate::world::{Tile, TileMap, GroundKind, TerrainKind, RoofKind, Chunk, CHUNK_SIZE};
 use crate::geom::Vec;
 
 pub fn load_level() -> TileMap {
@@ -30,10 +30,13 @@ pub fn load_level() -> TileMap {
     let right = (raster.width() as i32 - origin.x) / CHUNK_SIZE as i32;
     let bottom = (raster.height() as i32 - origin.y) / CHUNK_SIZE as i32;
     let mut tile_types = HashMap::new();
-    tile_types.insert((0, 255, 0, 255), Tile { ground : Some(GroundKind::Grass), terrain : None});
-    tile_types.insert((0, 0, 255, 255), Tile { ground : Some(GroundKind::Water), terrain : None});
-    tile_types.insert((0, 127, 0, 255), Tile { ground : Some(GroundKind::Grass), terrain : Some(TerrainKind::Tree)});
-    tile_types.insert((127, 51, 0, 255), Tile { ground : Some(GroundKind::Rock), terrain : Some(TerrainKind::Cliff)});
+    tile_types.insert((0, 255, 0, 255), Tile { ground : Some(GroundKind::Grass), terrain : None, roof: None});
+    tile_types.insert((0, 0, 255, 255), Tile { ground : Some(GroundKind::Water), terrain : None, roof: None});
+    tile_types.insert((0, 127, 0, 255), Tile { ground : Some(GroundKind::Grass), terrain : Some(TerrainKind::Tree), roof: None});
+    tile_types.insert((127, 51, 0, 255), Tile { ground : Some(GroundKind::Rock), terrain : Some(TerrainKind::Cliff), roof : Some(RoofKind::Mountain)});
+    tile_types.insert((70, 28, 0, 255), Tile { ground : Some(GroundKind::Rock), terrain : None, roof : Some(RoofKind::Mountain)});
+    tile_types.insert((195, 78, 0, 255), Tile { ground : Some(GroundKind::Rock), terrain : Some(TerrainKind::Entrance), roof : Some(RoofKind::Mountain)});
+    tile_types.insert((70, 0, 127, 255), Tile { ground : Some(GroundKind::Water), terrain : None, roof : Some(RoofKind::Mountain)});
     let tile_types = tile_types;
     let mut tile_map = TileMap::new();
     for cx in -left .. right {

@@ -69,7 +69,7 @@ pub struct Inventory {
 
 impl Inventory {
     fn insert(&mut self, item: Item) -> bool {
-        if self.items.len() >= self.cap {
+        if self.count() >= self.cap {
             return false;
         }
         if item.kind.stacks() {
@@ -90,6 +90,9 @@ impl Inventory {
                 if *count == 0 {
                     other.items.pop();
                 }
+            }
+            else {
+                break;
             }
         }
     }
@@ -184,19 +187,21 @@ impl TileMap {
 pub struct Tile {
     pub ground: Option<GroundKind>,
     pub terrain: Option<TerrainKind>,
+    pub roof: Option<RoofKind>,
 }
 
 impl Default for Tile {
     fn default() -> Tile {
         Tile {
-            ground : None,
-            terrain : None,
+            ground: None,
+            terrain: None,
+            roof: None,
         }
     }
 }
 impl Tile {
     fn is_free(self) -> bool {
-        self.ground != Some(GroundKind::Water) && self.terrain == None
+        self.ground != Some(GroundKind::Water) && (self.terrain == None || self.terrain == Some(TerrainKind::Entrance))
     }
 }
 
@@ -206,7 +211,11 @@ pub enum GroundKind {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum TerrainKind {
-    Tree, Cliff
+    Tree, Cliff, Entrance
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum RoofKind {
+    Mountain
 }
 
 
@@ -246,18 +255,26 @@ impl World {
         }
         match ev {
             PlayerAction(id, PlayerActionEvent::Move(dir)) => {
-                let pos = w.entities.get(&id).unwrap().pos + dir.to_vec();
+                let cur_pos = w.entities.get(&id).unwrap().pos;
+                let pos = cur_pos + dir.to_vec();
                 if w.is_free(pos) {
-                    w.entities.modify(id, |player| player.pos += dir.to_vec());
-                    evs.push((0, Enter(id, pos)));
+                    if w.tiles.get(pos).roof == w.tiles.get(cur_pos).roof ||
+                       w.tiles.get(cur_pos).roof == None && w.tiles.get(pos).terrain == Some(TerrainKind::Entrance) ||
+                       w.tiles.get(pos).roof == None && w.tiles.get(cur_pos).terrain == Some(TerrainKind::Entrance) { 
+                        w.entities.modify(id, |player| player.pos += dir.to_vec());
+                        evs.push((0, Enter(id, pos)));
+                    }
                 }
             }
             PlayerAction(id, PlayerActionEvent::Attack(dir)) => {
-                let attack_pos = w.entities.get(&id).unwrap().pos + dir.to_vec();
-                for id in w.get_entities_at(attack_pos).map(|(id, _)| id).collect::<vec::Vec<_>>() {
-                    w.hurt(&mut evs, id, 1);
+                let cur_pos = w.entities.get(&id).unwrap().pos;
+                let attack_pos = cur_pos + dir.to_vec();
+                if w.tiles.get(attack_pos).roof == w.tiles.get(cur_pos).roof {
+                    for id in w.get_entities_at(attack_pos).map(|(id, _)| id).collect::<vec::Vec<_>>() {
+                        w.hurt(&mut evs, id, 1);
+                    }
+                    w.break_tile(&mut evs, attack_pos);
                 }
-                w.break_tile(&mut evs, attack_pos);
             }
             SpawnEntity(id, entity_data) =>
                 w.entities.insert_mut(id, entity_data),
